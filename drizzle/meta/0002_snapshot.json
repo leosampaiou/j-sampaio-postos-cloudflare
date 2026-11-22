@@ -1,0 +1,2676 @@
+{
+  "version": "5",
+  "dialect": "mysql",
+  "id": "b3344e71-4ed5-4a5e-bc93-c1da61876fa4",
+  "prevId": "ab80aef6-f262-4ae1-baec-a53ff0f928d6",
+  "tables": {
+    "appSessions": {
+      "name": "appSessions",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "userId": {
+          "name": "userId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "tokenHash": {
+          "name": "tokenHash",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "csrfToken": {
+          "name": "csrfToken",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "expiresAt": {
+          "name": "expiresAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "revokedAt": {
+          "name": "revokedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        }
+      },
+      "indexes": {
+        "appSessions_user_idx": {
+          "name": "appSessions_user_idx",
+          "columns": [
+            "userId"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "appSessions_userId_appUsers_id_fk": {
+          "name": "appSessions_userId_appUsers_id_fk",
+          "tableFrom": "appSessions",
+          "tableTo": "appUsers",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "appSessions_id": {
+          "name": "appSessions_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "appSessions_tokenHash_unique": {
+          "name": "appSessions_tokenHash_unique",
+          "columns": [
+            "tokenHash"
+          ]
+        }
+      },
+      "checkConstraint": {}
+    },
+    "appUsers": {
+      "name": "appUsers",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "unitId": {
+          "name": "unitId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "username": {
+          "name": "username",
+          "type": "varchar(48)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "fullName": {
+          "name": "fullName",
+          "type": "varchar(160)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "passwordHash": {
+          "name": "passwordHash",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "role": {
+          "name": "role",
+          "type": "enum('frentista','gerente','administrador')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'frentista'"
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        },
+        "lastLoginAt": {
+          "name": "lastLoginAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "appUsers_unit_idx": {
+          "name": "appUsers_unit_idx",
+          "columns": [
+            "unitId"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "appUsers_unitId_units_id_fk": {
+          "name": "appUsers_unitId_units_id_fk",
+          "tableFrom": "appUsers",
+          "tableTo": "units",
+          "columnsFrom": [
+            "unitId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "appUsers_id": {
+          "name": "appUsers_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "appUsers_username_unique": {
+          "name": "appUsers_username_unique",
+          "columns": [
+            "username"
+          ]
+        }
+      },
+      "checkConstraint": {}
+    },
+    "auditEvents": {
+      "name": "auditEvents",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "unitId": {
+          "name": "unitId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "userId": {
+          "name": "userId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "targetType": {
+          "name": "targetType",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "targetId": {
+          "name": "targetId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "action": {
+          "name": "action",
+          "type": "varchar(48)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "field": {
+          "name": "field",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "beforeValue": {
+          "name": "beforeValue",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "afterValue": {
+          "name": "afterValue",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        }
+      },
+      "indexes": {
+        "audit_unit_created_idx": {
+          "name": "audit_unit_created_idx",
+          "columns": [
+            "unitId",
+            "createdAt"
+          ],
+          "isUnique": false
+        },
+        "audit_target_idx": {
+          "name": "audit_target_idx",
+          "columns": [
+            "targetType",
+            "targetId"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "auditEvents_unitId_units_id_fk": {
+          "name": "auditEvents_unitId_units_id_fk",
+          "tableFrom": "auditEvents",
+          "tableTo": "units",
+          "columnsFrom": [
+            "unitId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "auditEvents_userId_appUsers_id_fk": {
+          "name": "auditEvents_userId_appUsers_id_fk",
+          "tableFrom": "auditEvents",
+          "tableTo": "appUsers",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "auditEvents_id": {
+          "name": "auditEvents_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "closureNozzles": {
+      "name": "closureNozzles",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "closureId": {
+          "name": "closureId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "pumpId": {
+          "name": "pumpId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "pumpNumber": {
+          "name": "pumpNumber",
+          "type": "varchar(24)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "fuelType": {
+          "name": "fuelType",
+          "type": "enum('gasolina_comum','diesel_s10')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "initialReading": {
+          "name": "initialReading",
+          "type": "decimal(14,3)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "finalReading": {
+          "name": "finalReading",
+          "type": "decimal(14,3)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "liters": {
+          "name": "liters",
+          "type": "decimal(14,3)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "priceCents": {
+          "name": "priceCents",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "valueCents": {
+          "name": "valueCents",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "nozzle_closure_idx": {
+          "name": "nozzle_closure_idx",
+          "columns": [
+            "closureId"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "closureNozzles_closureId_closures_id_fk": {
+          "name": "closureNozzles_closureId_closures_id_fk",
+          "tableFrom": "closureNozzles",
+          "tableTo": "closures",
+          "columnsFrom": [
+            "closureId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "closureNozzles_pumpId_fuelPumps_id_fk": {
+          "name": "closureNozzles_pumpId_fuelPumps_id_fk",
+          "tableFrom": "closureNozzles",
+          "tableTo": "fuelPumps",
+          "columnsFrom": [
+            "pumpId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "closureNozzles_id": {
+          "name": "closureNozzles_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "closureParticipants": {
+      "name": "closureParticipants",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "closureId": {
+          "name": "closureId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "employeeId": {
+          "name": "employeeId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sharePercent": {
+          "name": "sharePercent",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        }
+      },
+      "indexes": {
+        "closure_participant_unique": {
+          "name": "closure_participant_unique",
+          "columns": [
+            "closureId",
+            "employeeId"
+          ],
+          "isUnique": true
+        },
+        "closure_participant_employee_idx": {
+          "name": "closure_participant_employee_idx",
+          "columns": [
+            "employeeId",
+            "closureId"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "closureParticipants_closureId_closures_id_fk": {
+          "name": "closureParticipants_closureId_closures_id_fk",
+          "tableFrom": "closureParticipants",
+          "tableTo": "closures",
+          "columnsFrom": [
+            "closureId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "closureParticipants_employeeId_employees_id_fk": {
+          "name": "closureParticipants_employeeId_employees_id_fk",
+          "tableFrom": "closureParticipants",
+          "tableTo": "employees",
+          "columnsFrom": [
+            "employeeId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "closureParticipants_id": {
+          "name": "closureParticipants_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "closurePayments": {
+      "name": "closurePayments",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "closureId": {
+          "name": "closureId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "method": {
+          "name": "method",
+          "type": "enum('dinheiro','pix','debito','credito')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "amountCents": {
+          "name": "amountCents",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "payment_closure_method_unique": {
+          "name": "payment_closure_method_unique",
+          "columns": [
+            "closureId",
+            "method"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "closurePayments_closureId_closures_id_fk": {
+          "name": "closurePayments_closureId_closures_id_fk",
+          "tableFrom": "closurePayments",
+          "tableTo": "closures",
+          "columnsFrom": [
+            "closureId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "closurePayments_id": {
+          "name": "closurePayments_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "closures": {
+      "name": "closures",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "unitId": {
+          "name": "unitId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "closureDate": {
+          "name": "closureDate",
+          "type": "varchar(10)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "shift": {
+          "name": "shift",
+          "type": "enum('manha','tarde','noite')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "employeeId": {
+          "name": "employeeId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "responsibleName": {
+          "name": "responsibleName",
+          "type": "varchar(160)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "createdBy": {
+          "name": "createdBy",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "enum('rascunho','aguardando_conferencia','finalizado','reaberto')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'rascunho'"
+        },
+        "result": {
+          "name": "result",
+          "type": "enum('pendente','conferido','sobra','falta')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'pendente'"
+        },
+        "salesCents": {
+          "name": "salesCents",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "receivedCents": {
+          "name": "receivedCents",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "differenceCents": {
+          "name": "differenceCents",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "toleranceCents": {
+          "name": "toleranceCents",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "employeeConfirmed": {
+          "name": "employeeConfirmed",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "responsibleConfirmed": {
+          "name": "responsibleConfirmed",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "finalizedAt": {
+          "name": "finalizedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "reopenedAt": {
+          "name": "reopenedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "revision": {
+          "name": "revision",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "onUpdate": true,
+          "default": "(now())"
+        }
+      },
+      "indexes": {
+        "closure_unit_date_shift_unique": {
+          "name": "closure_unit_date_shift_unique",
+          "columns": [
+            "unitId",
+            "closureDate",
+            "shift"
+          ],
+          "isUnique": true
+        },
+        "closure_date_idx": {
+          "name": "closure_date_idx",
+          "columns": [
+            "unitId",
+            "closureDate"
+          ],
+          "isUnique": false
+        },
+        "closure_employee_idx": {
+          "name": "closure_employee_idx",
+          "columns": [
+            "employeeId"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "closures_unitId_units_id_fk": {
+          "name": "closures_unitId_units_id_fk",
+          "tableFrom": "closures",
+          "tableTo": "units",
+          "columnsFrom": [
+            "unitId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "closures_employeeId_employees_id_fk": {
+          "name": "closures_employeeId_employees_id_fk",
+          "tableFrom": "closures",
+          "tableTo": "employees",
+          "columnsFrom": [
+            "employeeId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "closures_createdBy_appUsers_id_fk": {
+          "name": "closures_createdBy_appUsers_id_fk",
+          "tableFrom": "closures",
+          "tableTo": "appUsers",
+          "columnsFrom": [
+            "createdBy"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "closures_id": {
+          "name": "closures_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "discrepancyAllocations": {
+      "name": "discrepancyAllocations",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "caseId": {
+          "name": "caseId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "employeeId": {
+          "name": "employeeId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "closureRevision": {
+          "name": "closureRevision",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "allocatedCents": {
+          "name": "allocatedCents",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        }
+      },
+      "indexes": {
+        "discrepancy_allocation_revision_unique": {
+          "name": "discrepancy_allocation_revision_unique",
+          "columns": [
+            "caseId",
+            "closureRevision",
+            "employeeId"
+          ],
+          "isUnique": true
+        },
+        "discrepancy_allocation_employee_idx": {
+          "name": "discrepancy_allocation_employee_idx",
+          "columns": [
+            "employeeId",
+            "caseId"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "discrepancyAllocations_caseId_discrepancyCases_id_fk": {
+          "name": "discrepancyAllocations_caseId_discrepancyCases_id_fk",
+          "tableFrom": "discrepancyAllocations",
+          "tableTo": "discrepancyCases",
+          "columnsFrom": [
+            "caseId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "discrepancyAllocations_employeeId_employees_id_fk": {
+          "name": "discrepancyAllocations_employeeId_employees_id_fk",
+          "tableFrom": "discrepancyAllocations",
+          "tableTo": "employees",
+          "columnsFrom": [
+            "employeeId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "discrepancyAllocations_id": {
+          "name": "discrepancyAllocations_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "discrepancyCases": {
+      "name": "discrepancyCases",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "unitId": {
+          "name": "unitId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "closureId": {
+          "name": "closureId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "closureRevision": {
+          "name": "closureRevision",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "type": {
+          "name": "type",
+          "type": "enum('sobra','falta')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "amountCents": {
+          "name": "amountCents",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "enum('pendente_analise','em_investigacao','justificada','encerrada_sem_desconto','encaminhada_administrativo','resolvida','cancelada_por_correcao')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'pendente_analise'"
+        },
+        "justification": {
+          "name": "justification",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "reviewNotes": {
+          "name": "reviewNotes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "evidenceKey": {
+          "name": "evidenceKey",
+          "type": "varchar(420)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "decisionBy": {
+          "name": "decisionBy",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "decisionAt": {
+          "name": "decisionAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "onUpdate": true,
+          "default": "(now())"
+        }
+      },
+      "indexes": {
+        "discrepancy_closure_unique": {
+          "name": "discrepancy_closure_unique",
+          "columns": [
+            "closureId"
+          ],
+          "isUnique": true
+        },
+        "discrepancy_unit_status_idx": {
+          "name": "discrepancy_unit_status_idx",
+          "columns": [
+            "unitId",
+            "status"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "discrepancyCases_unitId_units_id_fk": {
+          "name": "discrepancyCases_unitId_units_id_fk",
+          "tableFrom": "discrepancyCases",
+          "tableTo": "units",
+          "columnsFrom": [
+            "unitId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "discrepancyCases_closureId_closures_id_fk": {
+          "name": "discrepancyCases_closureId_closures_id_fk",
+          "tableFrom": "discrepancyCases",
+          "tableTo": "closures",
+          "columnsFrom": [
+            "closureId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "discrepancyCases_decisionBy_appUsers_id_fk": {
+          "name": "discrepancyCases_decisionBy_appUsers_id_fk",
+          "tableFrom": "discrepancyCases",
+          "tableTo": "appUsers",
+          "columnsFrom": [
+            "decisionBy"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "discrepancyCases_id": {
+          "name": "discrepancyCases_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "employees": {
+      "name": "employees",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "unitId": {
+          "name": "unitId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "linkedUserId": {
+          "name": "linkedUserId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "fullName": {
+          "name": "fullName",
+          "type": "varchar(160)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "onUpdate": true,
+          "default": "(now())"
+        }
+      },
+      "indexes": {
+        "employees_unit_idx": {
+          "name": "employees_unit_idx",
+          "columns": [
+            "unitId"
+          ],
+          "isUnique": false
+        },
+        "employees_linked_user_idx": {
+          "name": "employees_linked_user_idx",
+          "columns": [
+            "linkedUserId"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "employees_unitId_units_id_fk": {
+          "name": "employees_unitId_units_id_fk",
+          "tableFrom": "employees",
+          "tableTo": "units",
+          "columnsFrom": [
+            "unitId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "employees_linkedUserId_appUsers_id_fk": {
+          "name": "employees_linkedUserId_appUsers_id_fk",
+          "tableFrom": "employees",
+          "tableTo": "appUsers",
+          "columnsFrom": [
+            "linkedUserId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "employees_id": {
+          "name": "employees_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "fuelPrices": {
+      "name": "fuelPrices",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "unitId": {
+          "name": "unitId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "fuelType": {
+          "name": "fuelType",
+          "type": "enum('gasolina_comum','diesel_s10')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "priceCents": {
+          "name": "priceCents",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "effectiveAt": {
+          "name": "effectiveAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        },
+        "createdBy": {
+          "name": "createdBy",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "fuel_price_lookup_idx": {
+          "name": "fuel_price_lookup_idx",
+          "columns": [
+            "unitId",
+            "fuelType",
+            "effectiveAt"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "fuelPrices_unitId_units_id_fk": {
+          "name": "fuelPrices_unitId_units_id_fk",
+          "tableFrom": "fuelPrices",
+          "tableTo": "units",
+          "columnsFrom": [
+            "unitId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fuelPrices_createdBy_appUsers_id_fk": {
+          "name": "fuelPrices_createdBy_appUsers_id_fk",
+          "tableFrom": "fuelPrices",
+          "tableTo": "appUsers",
+          "columnsFrom": [
+            "createdBy"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "fuelPrices_id": {
+          "name": "fuelPrices_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "fuelPumps": {
+      "name": "fuelPumps",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "unitId": {
+          "name": "unitId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "number": {
+          "name": "number",
+          "type": "varchar(24)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "fuelType": {
+          "name": "fuelType",
+          "type": "enum('gasolina_comum','diesel_s10')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        }
+      },
+      "indexes": {
+        "pump_unit_number_unique": {
+          "name": "pump_unit_number_unique",
+          "columns": [
+            "unitId",
+            "number"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "fuelPumps_unitId_units_id_fk": {
+          "name": "fuelPumps_unitId_units_id_fk",
+          "tableFrom": "fuelPumps",
+          "tableTo": "units",
+          "columnsFrom": [
+            "unitId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "fuelPumps_id": {
+          "name": "fuelPumps_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "fuelTanks": {
+      "name": "fuelTanks",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "unitId": {
+          "name": "unitId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "code": {
+          "name": "code",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "fuelType": {
+          "name": "fuelType",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "capacityTotalLiters": {
+          "name": "capacityTotalLiters",
+          "type": "decimal(14,3)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "operationalCapacityLiters": {
+          "name": "operationalCapacityLiters",
+          "type": "decimal(14,3)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "minimumStockLiters": {
+          "name": "minimumStockLiters",
+          "type": "decimal(14,3)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "initialStockLiters": {
+          "name": "initialStockLiters",
+          "type": "decimal(14,3)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "stockStartDate": {
+          "name": "stockStartDate",
+          "type": "varchar(10)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "replenishmentLeadDays": {
+          "name": "replenishmentLeadDays",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "safetyReserveLiters": {
+          "name": "safetyReserveLiters",
+          "type": "decimal(14,3)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'0'"
+        },
+        "nearMinimumPercent": {
+          "name": "nearMinimumPercent",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 15
+        },
+        "autonomyWarningDays": {
+          "name": "autonomyWarningDays",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 3
+        },
+        "autonomyCriticalDays": {
+          "name": "autonomyCriticalDays",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 2
+        },
+        "discrepancyAlertPercent": {
+          "name": "discrepancyAlertPercent",
+          "type": "decimal(9,3)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'2'"
+        },
+        "staleAfterDays": {
+          "name": "staleAfterDays",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 7
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        },
+        "lastSuppliedAt": {
+          "name": "lastSuppliedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "createdBy": {
+          "name": "createdBy",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "onUpdate": true,
+          "default": "(now())"
+        }
+      },
+      "indexes": {
+        "fuel_tank_unit_code_unique": {
+          "name": "fuel_tank_unit_code_unique",
+          "columns": [
+            "unitId",
+            "code"
+          ],
+          "isUnique": true
+        },
+        "fuel_tank_unit_active_idx": {
+          "name": "fuel_tank_unit_active_idx",
+          "columns": [
+            "unitId",
+            "active"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "fuelTanks_unitId_units_id_fk": {
+          "name": "fuelTanks_unitId_units_id_fk",
+          "tableFrom": "fuelTanks",
+          "tableTo": "units",
+          "columnsFrom": [
+            "unitId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fuelTanks_createdBy_appUsers_id_fk": {
+          "name": "fuelTanks_createdBy_appUsers_id_fk",
+          "tableFrom": "fuelTanks",
+          "tableTo": "appUsers",
+          "columnsFrom": [
+            "createdBy"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "fuelTanks_id": {
+          "name": "fuelTanks_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "payrollAdjustmentReviews": {
+      "name": "payrollAdjustmentReviews",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "unitId": {
+          "name": "unitId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "caseId": {
+          "name": "caseId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "employeeId": {
+          "name": "employeeId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "referenceMonth": {
+          "name": "referenceMonth",
+          "type": "varchar(7)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "originalAmountCents": {
+          "name": "originalAmountCents",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "approvedAmountCents": {
+          "name": "approvedAmountCents",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "justification": {
+          "name": "justification",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "enum('nao_elegivel','aguardando_analise','aguardando_autorizacao','aprovado','rejeitado','encaminhado_folha','processado')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'aguardando_analise'"
+        },
+        "approvalBy": {
+          "name": "approvalBy",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "approvedAt": {
+          "name": "approvedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "createdBy": {
+          "name": "createdBy",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "onUpdate": true,
+          "default": "(now())"
+        }
+      },
+      "indexes": {
+        "payroll_review_case_employee_unique": {
+          "name": "payroll_review_case_employee_unique",
+          "columns": [
+            "caseId",
+            "employeeId"
+          ],
+          "isUnique": true
+        },
+        "payroll_review_unit_month_idx": {
+          "name": "payroll_review_unit_month_idx",
+          "columns": [
+            "unitId",
+            "referenceMonth"
+          ],
+          "isUnique": false
+        },
+        "payroll_review_case_idx": {
+          "name": "payroll_review_case_idx",
+          "columns": [
+            "caseId"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "payrollAdjustmentReviews_unitId_units_id_fk": {
+          "name": "payrollAdjustmentReviews_unitId_units_id_fk",
+          "tableFrom": "payrollAdjustmentReviews",
+          "tableTo": "units",
+          "columnsFrom": [
+            "unitId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "payrollAdjustmentReviews_caseId_discrepancyCases_id_fk": {
+          "name": "payrollAdjustmentReviews_caseId_discrepancyCases_id_fk",
+          "tableFrom": "payrollAdjustmentReviews",
+          "tableTo": "discrepancyCases",
+          "columnsFrom": [
+            "caseId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "payrollAdjustmentReviews_employeeId_employees_id_fk": {
+          "name": "payrollAdjustmentReviews_employeeId_employees_id_fk",
+          "tableFrom": "payrollAdjustmentReviews",
+          "tableTo": "employees",
+          "columnsFrom": [
+            "employeeId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "payrollAdjustmentReviews_approvalBy_appUsers_id_fk": {
+          "name": "payrollAdjustmentReviews_approvalBy_appUsers_id_fk",
+          "tableFrom": "payrollAdjustmentReviews",
+          "tableTo": "appUsers",
+          "columnsFrom": [
+            "approvalBy"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "payrollAdjustmentReviews_createdBy_appUsers_id_fk": {
+          "name": "payrollAdjustmentReviews_createdBy_appUsers_id_fk",
+          "tableFrom": "payrollAdjustmentReviews",
+          "tableTo": "appUsers",
+          "columnsFrom": [
+            "createdBy"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "payrollAdjustmentReviews_id": {
+          "name": "payrollAdjustmentReviews_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "stockMovements": {
+      "name": "stockMovements",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "unitId": {
+          "name": "unitId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "tankId": {
+          "name": "tankId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "movementType": {
+          "name": "movementType",
+          "type": "enum('opening','receipt','sale','writeoff','correction')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quantityLiters": {
+          "name": "quantityLiters",
+          "type": "decimal(14,3)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sourceKey": {
+          "name": "sourceKey",
+          "type": "varchar(220)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sourceClosureId": {
+          "name": "sourceClosureId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "sourcePumpId": {
+          "name": "sourcePumpId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "supplier": {
+          "name": "supplier",
+          "type": "varchar(180)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "invoiceNumber": {
+          "name": "invoiceNumber",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "acquisitionValueCents": {
+          "name": "acquisitionValueCents",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "documentKey": {
+          "name": "documentKey",
+          "type": "varchar(420)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "occurredAt": {
+          "name": "occurredAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        },
+        "createdBy": {
+          "name": "createdBy",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        }
+      },
+      "indexes": {
+        "stock_movement_invoice_unique": {
+          "name": "stock_movement_invoice_unique",
+          "columns": [
+            "unitId",
+            "tankId",
+            "invoiceNumber"
+          ],
+          "isUnique": true
+        },
+        "stock_movement_tank_time_idx": {
+          "name": "stock_movement_tank_time_idx",
+          "columns": [
+            "unitId",
+            "tankId",
+            "occurredAt"
+          ],
+          "isUnique": false
+        },
+        "stock_movement_closure_pump_idx": {
+          "name": "stock_movement_closure_pump_idx",
+          "columns": [
+            "sourceClosureId",
+            "sourcePumpId"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "stockMovements_unitId_units_id_fk": {
+          "name": "stockMovements_unitId_units_id_fk",
+          "tableFrom": "stockMovements",
+          "tableTo": "units",
+          "columnsFrom": [
+            "unitId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "stockMovements_tankId_fuelTanks_id_fk": {
+          "name": "stockMovements_tankId_fuelTanks_id_fk",
+          "tableFrom": "stockMovements",
+          "tableTo": "fuelTanks",
+          "columnsFrom": [
+            "tankId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "stockMovements_sourceClosureId_closures_id_fk": {
+          "name": "stockMovements_sourceClosureId_closures_id_fk",
+          "tableFrom": "stockMovements",
+          "tableTo": "closures",
+          "columnsFrom": [
+            "sourceClosureId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "stockMovements_sourcePumpId_fuelPumps_id_fk": {
+          "name": "stockMovements_sourcePumpId_fuelPumps_id_fk",
+          "tableFrom": "stockMovements",
+          "tableTo": "fuelPumps",
+          "columnsFrom": [
+            "sourcePumpId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "stockMovements_createdBy_appUsers_id_fk": {
+          "name": "stockMovements_createdBy_appUsers_id_fk",
+          "tableFrom": "stockMovements",
+          "tableTo": "appUsers",
+          "columnsFrom": [
+            "createdBy"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "stockMovements_id": {
+          "name": "stockMovements_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "stockMovements_sourceKey_unique": {
+          "name": "stockMovements_sourceKey_unique",
+          "columns": [
+            "sourceKey"
+          ]
+        }
+      },
+      "checkConstraint": {}
+    },
+    "tankMeasurements": {
+      "name": "tankMeasurements",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "unitId": {
+          "name": "unitId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "tankId": {
+          "name": "tankId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "physicalLiters": {
+          "name": "physicalLiters",
+          "type": "decimal(14,3)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "theoreticalLiters": {
+          "name": "theoreticalLiters",
+          "type": "decimal(14,3)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "differenceLiters": {
+          "name": "differenceLiters",
+          "type": "decimal(14,3)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "differencePercent": {
+          "name": "differencePercent",
+          "type": "decimal(9,3)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "measuredAt": {
+          "name": "measuredAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "measuredBy": {
+          "name": "measuredBy",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        }
+      },
+      "indexes": {
+        "tank_measurement_latest_idx": {
+          "name": "tank_measurement_latest_idx",
+          "columns": [
+            "unitId",
+            "tankId",
+            "measuredAt"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "tankMeasurements_unitId_units_id_fk": {
+          "name": "tankMeasurements_unitId_units_id_fk",
+          "tableFrom": "tankMeasurements",
+          "tableTo": "units",
+          "columnsFrom": [
+            "unitId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "tankMeasurements_tankId_fuelTanks_id_fk": {
+          "name": "tankMeasurements_tankId_fuelTanks_id_fk",
+          "tableFrom": "tankMeasurements",
+          "tableTo": "fuelTanks",
+          "columnsFrom": [
+            "tankId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "tankMeasurements_measuredBy_appUsers_id_fk": {
+          "name": "tankMeasurements_measuredBy_appUsers_id_fk",
+          "tableFrom": "tankMeasurements",
+          "tableTo": "appUsers",
+          "columnsFrom": [
+            "measuredBy"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "tankMeasurements_id": {
+          "name": "tankMeasurements_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "tankPumpAssignments": {
+      "name": "tankPumpAssignments",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "unitId": {
+          "name": "unitId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "pumpId": {
+          "name": "pumpId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "tankId": {
+          "name": "tankId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "createdBy": {
+          "name": "createdBy",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        }
+      },
+      "indexes": {
+        "tank_pump_one_assignment_unique": {
+          "name": "tank_pump_one_assignment_unique",
+          "columns": [
+            "pumpId"
+          ],
+          "isUnique": true
+        },
+        "tank_assignment_unit_idx": {
+          "name": "tank_assignment_unit_idx",
+          "columns": [
+            "unitId",
+            "tankId"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "tankPumpAssignments_unitId_units_id_fk": {
+          "name": "tankPumpAssignments_unitId_units_id_fk",
+          "tableFrom": "tankPumpAssignments",
+          "tableTo": "units",
+          "columnsFrom": [
+            "unitId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "tankPumpAssignments_pumpId_fuelPumps_id_fk": {
+          "name": "tankPumpAssignments_pumpId_fuelPumps_id_fk",
+          "tableFrom": "tankPumpAssignments",
+          "tableTo": "fuelPumps",
+          "columnsFrom": [
+            "pumpId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "tankPumpAssignments_tankId_fuelTanks_id_fk": {
+          "name": "tankPumpAssignments_tankId_fuelTanks_id_fk",
+          "tableFrom": "tankPumpAssignments",
+          "tableTo": "fuelTanks",
+          "columnsFrom": [
+            "tankId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "tankPumpAssignments_createdBy_appUsers_id_fk": {
+          "name": "tankPumpAssignments_createdBy_appUsers_id_fk",
+          "tableFrom": "tankPumpAssignments",
+          "tableTo": "appUsers",
+          "columnsFrom": [
+            "createdBy"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "tankPumpAssignments_id": {
+          "name": "tankPumpAssignments_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "unitSettings": {
+      "name": "unitSettings",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "unitId": {
+          "name": "unitId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "settingKey": {
+          "name": "settingKey",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "settingValue": {
+          "name": "settingValue",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updatedBy": {
+          "name": "updatedBy",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "onUpdate": true,
+          "default": "(now())"
+        }
+      },
+      "indexes": {
+        "unit_setting_unique": {
+          "name": "unit_setting_unique",
+          "columns": [
+            "unitId",
+            "settingKey"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "unitSettings_unitId_units_id_fk": {
+          "name": "unitSettings_unitId_units_id_fk",
+          "tableFrom": "unitSettings",
+          "tableTo": "units",
+          "columnsFrom": [
+            "unitId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "unitSettings_updatedBy_appUsers_id_fk": {
+          "name": "unitSettings_updatedBy_appUsers_id_fk",
+          "tableFrom": "unitSettings",
+          "tableTo": "appUsers",
+          "columnsFrom": [
+            "updatedBy"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "unitSettings_id": {
+          "name": "unitSettings_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "units": {
+      "name": "units",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "legalName": {
+          "name": "legalName",
+          "type": "varchar(180)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "tradeName": {
+          "name": "tradeName",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "cnpj": {
+          "name": "cnpj",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "address": {
+          "name": "address",
+          "type": "varchar(240)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "city": {
+          "name": "city",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "state": {
+          "name": "state",
+          "type": "varchar(2)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "postalCode": {
+          "name": "postalCode",
+          "type": "varchar(12)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "units_id": {
+          "name": "units_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "users": {
+      "name": "users",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "openId": {
+          "name": "openId",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "email": {
+          "name": "email",
+          "type": "varchar(320)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "loginMethod": {
+          "name": "loginMethod",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "role": {
+          "name": "role",
+          "type": "enum('user','admin')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'user'"
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "onUpdate": true,
+          "default": "(now())"
+        },
+        "lastSignedIn": {
+          "name": "lastSignedIn",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "users_id": {
+          "name": "users_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "users_openId_unique": {
+          "name": "users_openId_unique",
+          "columns": [
+            "openId"
+          ]
+        }
+      },
+      "checkConstraint": {}
+    }
+  },
+  "views": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "tables": {},
+    "indexes": {}
+  }
+}

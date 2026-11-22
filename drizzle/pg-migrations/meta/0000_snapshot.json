@@ -1,0 +1,2831 @@
+{
+  "id": "d1c56600-0777-492f-ba9d-793152f4959c",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.appSessions": {
+      "name": "appSessions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "userId": {
+          "name": "userId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tokenHash": {
+          "name": "tokenHash",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "csrfToken": {
+          "name": "csrfToken",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expiresAt": {
+          "name": "expiresAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revokedAt": {
+          "name": "revokedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "appSessions_user_idx": {
+          "name": "appSessions_user_idx",
+          "columns": [
+            {
+              "expression": "userId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "appSessions_userId_appUsers_id_fk": {
+          "name": "appSessions_userId_appUsers_id_fk",
+          "tableFrom": "appSessions",
+          "tableTo": "appUsers",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "appSessions_tokenHash_unique": {
+          "name": "appSessions_tokenHash_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tokenHash"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.appUsers": {
+      "name": "appUsers",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "unitId": {
+          "name": "unitId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "username": {
+          "name": "username",
+          "type": "varchar(48)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fullName": {
+          "name": "fullName",
+          "type": "varchar(160)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "passwordHash": {
+          "name": "passwordHash",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "app_user_role",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'frentista'"
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "lastLoginAt": {
+          "name": "lastLoginAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "appUsers_unit_idx": {
+          "name": "appUsers_unit_idx",
+          "columns": [
+            {
+              "expression": "unitId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "appUsers_unitId_units_id_fk": {
+          "name": "appUsers_unitId_units_id_fk",
+          "tableFrom": "appUsers",
+          "tableTo": "units",
+          "columnsFrom": [
+            "unitId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "appUsers_username_unique": {
+          "name": "appUsers_username_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "username"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.auditEvents": {
+      "name": "auditEvents",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "unitId": {
+          "name": "unitId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "userId": {
+          "name": "userId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "targetType": {
+          "name": "targetType",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "targetId": {
+          "name": "targetId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "action": {
+          "name": "action",
+          "type": "varchar(48)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "field": {
+          "name": "field",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "beforeValue": {
+          "name": "beforeValue",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "afterValue": {
+          "name": "afterValue",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "audit_unit_created_idx": {
+          "name": "audit_unit_created_idx",
+          "columns": [
+            {
+              "expression": "unitId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "createdAt",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "audit_target_idx": {
+          "name": "audit_target_idx",
+          "columns": [
+            {
+              "expression": "targetType",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "targetId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "auditEvents_unitId_units_id_fk": {
+          "name": "auditEvents_unitId_units_id_fk",
+          "tableFrom": "auditEvents",
+          "tableTo": "units",
+          "columnsFrom": [
+            "unitId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "auditEvents_userId_appUsers_id_fk": {
+          "name": "auditEvents_userId_appUsers_id_fk",
+          "tableFrom": "auditEvents",
+          "tableTo": "appUsers",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.closureNozzles": {
+      "name": "closureNozzles",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "closureId": {
+          "name": "closureId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pumpId": {
+          "name": "pumpId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pumpNumber": {
+          "name": "pumpNumber",
+          "type": "varchar(24)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fuelType": {
+          "name": "fuelType",
+          "type": "fuel_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "initialReading": {
+          "name": "initialReading",
+          "type": "numeric(14, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "finalReading": {
+          "name": "finalReading",
+          "type": "numeric(14, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "liters": {
+          "name": "liters",
+          "type": "numeric(14, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "priceCents": {
+          "name": "priceCents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "valueCents": {
+          "name": "valueCents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "nozzle_closure_idx": {
+          "name": "nozzle_closure_idx",
+          "columns": [
+            {
+              "expression": "closureId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "closureNozzles_closureId_closures_id_fk": {
+          "name": "closureNozzles_closureId_closures_id_fk",
+          "tableFrom": "closureNozzles",
+          "tableTo": "closures",
+          "columnsFrom": [
+            "closureId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "closureNozzles_pumpId_fuelPumps_id_fk": {
+          "name": "closureNozzles_pumpId_fuelPumps_id_fk",
+          "tableFrom": "closureNozzles",
+          "tableTo": "fuelPumps",
+          "columnsFrom": [
+            "pumpId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.closureParticipants": {
+      "name": "closureParticipants",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "closureId": {
+          "name": "closureId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "employeeId": {
+          "name": "employeeId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sharePercent": {
+          "name": "sharePercent",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "closure_participant_unique": {
+          "name": "closure_participant_unique",
+          "columns": [
+            {
+              "expression": "closureId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "employeeId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "closure_participant_employee_idx": {
+          "name": "closure_participant_employee_idx",
+          "columns": [
+            {
+              "expression": "employeeId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "closureId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "closureParticipants_closureId_closures_id_fk": {
+          "name": "closureParticipants_closureId_closures_id_fk",
+          "tableFrom": "closureParticipants",
+          "tableTo": "closures",
+          "columnsFrom": [
+            "closureId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "closureParticipants_employeeId_employees_id_fk": {
+          "name": "closureParticipants_employeeId_employees_id_fk",
+          "tableFrom": "closureParticipants",
+          "tableTo": "employees",
+          "columnsFrom": [
+            "employeeId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.closurePayments": {
+      "name": "closurePayments",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "closureId": {
+          "name": "closureId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "method": {
+          "name": "method",
+          "type": "payment_method",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amountCents": {
+          "name": "amountCents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "payment_closure_method_unique": {
+          "name": "payment_closure_method_unique",
+          "columns": [
+            {
+              "expression": "closureId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "method",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "closurePayments_closureId_closures_id_fk": {
+          "name": "closurePayments_closureId_closures_id_fk",
+          "tableFrom": "closurePayments",
+          "tableTo": "closures",
+          "columnsFrom": [
+            "closureId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.closures": {
+      "name": "closures",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "unitId": {
+          "name": "unitId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "closureDate": {
+          "name": "closureDate",
+          "type": "varchar(10)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "shift": {
+          "name": "shift",
+          "type": "closure_shift",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "employeeId": {
+          "name": "employeeId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "responsibleName": {
+          "name": "responsibleName",
+          "type": "varchar(160)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdBy": {
+          "name": "createdBy",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "closure_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'rascunho'"
+        },
+        "result": {
+          "name": "result",
+          "type": "closure_result",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pendente'"
+        },
+        "salesCents": {
+          "name": "salesCents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "receivedCents": {
+          "name": "receivedCents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "differenceCents": {
+          "name": "differenceCents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "toleranceCents": {
+          "name": "toleranceCents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "employeeConfirmed": {
+          "name": "employeeConfirmed",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "responsibleConfirmed": {
+          "name": "responsibleConfirmed",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "finalizedAt": {
+          "name": "finalizedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reopenedAt": {
+          "name": "reopenedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "closure_unit_date_shift_unique": {
+          "name": "closure_unit_date_shift_unique",
+          "columns": [
+            {
+              "expression": "unitId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "closureDate",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "shift",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "closure_date_idx": {
+          "name": "closure_date_idx",
+          "columns": [
+            {
+              "expression": "unitId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "closureDate",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "closure_employee_idx": {
+          "name": "closure_employee_idx",
+          "columns": [
+            {
+              "expression": "employeeId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "closures_unitId_units_id_fk": {
+          "name": "closures_unitId_units_id_fk",
+          "tableFrom": "closures",
+          "tableTo": "units",
+          "columnsFrom": [
+            "unitId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "closures_employeeId_employees_id_fk": {
+          "name": "closures_employeeId_employees_id_fk",
+          "tableFrom": "closures",
+          "tableTo": "employees",
+          "columnsFrom": [
+            "employeeId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "closures_createdBy_appUsers_id_fk": {
+          "name": "closures_createdBy_appUsers_id_fk",
+          "tableFrom": "closures",
+          "tableTo": "appUsers",
+          "columnsFrom": [
+            "createdBy"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.discrepancyAllocations": {
+      "name": "discrepancyAllocations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "caseId": {
+          "name": "caseId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "employeeId": {
+          "name": "employeeId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "closureRevision": {
+          "name": "closureRevision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "allocatedCents": {
+          "name": "allocatedCents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "discrepancy_allocation_revision_unique": {
+          "name": "discrepancy_allocation_revision_unique",
+          "columns": [
+            {
+              "expression": "caseId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "closureRevision",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "employeeId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "discrepancy_allocation_employee_idx": {
+          "name": "discrepancy_allocation_employee_idx",
+          "columns": [
+            {
+              "expression": "employeeId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "caseId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "discrepancyAllocations_caseId_discrepancyCases_id_fk": {
+          "name": "discrepancyAllocations_caseId_discrepancyCases_id_fk",
+          "tableFrom": "discrepancyAllocations",
+          "tableTo": "discrepancyCases",
+          "columnsFrom": [
+            "caseId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "discrepancyAllocations_employeeId_employees_id_fk": {
+          "name": "discrepancyAllocations_employeeId_employees_id_fk",
+          "tableFrom": "discrepancyAllocations",
+          "tableTo": "employees",
+          "columnsFrom": [
+            "employeeId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.discrepancyCases": {
+      "name": "discrepancyCases",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "unitId": {
+          "name": "unitId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "closureId": {
+          "name": "closureId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "closureRevision": {
+          "name": "closureRevision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "discrepancy_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amountCents": {
+          "name": "amountCents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "discrepancy_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pendente_analise'"
+        },
+        "justification": {
+          "name": "justification",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reviewNotes": {
+          "name": "reviewNotes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "evidenceKey": {
+          "name": "evidenceKey",
+          "type": "varchar(420)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decisionBy": {
+          "name": "decisionBy",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decisionAt": {
+          "name": "decisionAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "discrepancy_closure_unique": {
+          "name": "discrepancy_closure_unique",
+          "columns": [
+            {
+              "expression": "closureId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "discrepancy_unit_status_idx": {
+          "name": "discrepancy_unit_status_idx",
+          "columns": [
+            {
+              "expression": "unitId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "discrepancyCases_unitId_units_id_fk": {
+          "name": "discrepancyCases_unitId_units_id_fk",
+          "tableFrom": "discrepancyCases",
+          "tableTo": "units",
+          "columnsFrom": [
+            "unitId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "discrepancyCases_closureId_closures_id_fk": {
+          "name": "discrepancyCases_closureId_closures_id_fk",
+          "tableFrom": "discrepancyCases",
+          "tableTo": "closures",
+          "columnsFrom": [
+            "closureId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "discrepancyCases_decisionBy_appUsers_id_fk": {
+          "name": "discrepancyCases_decisionBy_appUsers_id_fk",
+          "tableFrom": "discrepancyCases",
+          "tableTo": "appUsers",
+          "columnsFrom": [
+            "decisionBy"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.employees": {
+      "name": "employees",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "unitId": {
+          "name": "unitId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "linkedUserId": {
+          "name": "linkedUserId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "fullName": {
+          "name": "fullName",
+          "type": "varchar(160)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "employees_unit_idx": {
+          "name": "employees_unit_idx",
+          "columns": [
+            {
+              "expression": "unitId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "employees_linked_user_idx": {
+          "name": "employees_linked_user_idx",
+          "columns": [
+            {
+              "expression": "linkedUserId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "employees_unitId_units_id_fk": {
+          "name": "employees_unitId_units_id_fk",
+          "tableFrom": "employees",
+          "tableTo": "units",
+          "columnsFrom": [
+            "unitId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "employees_linkedUserId_appUsers_id_fk": {
+          "name": "employees_linkedUserId_appUsers_id_fk",
+          "tableFrom": "employees",
+          "tableTo": "appUsers",
+          "columnsFrom": [
+            "linkedUserId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.fuelPrices": {
+      "name": "fuelPrices",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "unitId": {
+          "name": "unitId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fuelType": {
+          "name": "fuelType",
+          "type": "fuel_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "priceCents": {
+          "name": "priceCents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "effectiveAt": {
+          "name": "effectiveAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "createdBy": {
+          "name": "createdBy",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "fuel_price_lookup_idx": {
+          "name": "fuel_price_lookup_idx",
+          "columns": [
+            {
+              "expression": "unitId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "fuelType",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "effectiveAt",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "fuelPrices_unitId_units_id_fk": {
+          "name": "fuelPrices_unitId_units_id_fk",
+          "tableFrom": "fuelPrices",
+          "tableTo": "units",
+          "columnsFrom": [
+            "unitId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fuelPrices_createdBy_appUsers_id_fk": {
+          "name": "fuelPrices_createdBy_appUsers_id_fk",
+          "tableFrom": "fuelPrices",
+          "tableTo": "appUsers",
+          "columnsFrom": [
+            "createdBy"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.fuelPumps": {
+      "name": "fuelPumps",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "unitId": {
+          "name": "unitId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "number": {
+          "name": "number",
+          "type": "varchar(24)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fuelType": {
+          "name": "fuelType",
+          "type": "fuel_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        }
+      },
+      "indexes": {
+        "pump_unit_number_unique": {
+          "name": "pump_unit_number_unique",
+          "columns": [
+            {
+              "expression": "unitId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "fuelPumps_unitId_units_id_fk": {
+          "name": "fuelPumps_unitId_units_id_fk",
+          "tableFrom": "fuelPumps",
+          "tableTo": "units",
+          "columnsFrom": [
+            "unitId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.fuelTanks": {
+      "name": "fuelTanks",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "unitId": {
+          "name": "unitId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "code": {
+          "name": "code",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fuelType": {
+          "name": "fuelType",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "capacityTotalLiters": {
+          "name": "capacityTotalLiters",
+          "type": "numeric(14, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "operationalCapacityLiters": {
+          "name": "operationalCapacityLiters",
+          "type": "numeric(14, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "minimumStockLiters": {
+          "name": "minimumStockLiters",
+          "type": "numeric(14, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "initialStockLiters": {
+          "name": "initialStockLiters",
+          "type": "numeric(14, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stockStartDate": {
+          "name": "stockStartDate",
+          "type": "varchar(10)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "replenishmentLeadDays": {
+          "name": "replenishmentLeadDays",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "safetyReserveLiters": {
+          "name": "safetyReserveLiters",
+          "type": "numeric(14, 3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "nearMinimumPercent": {
+          "name": "nearMinimumPercent",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 15
+        },
+        "autonomyWarningDays": {
+          "name": "autonomyWarningDays",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 3
+        },
+        "autonomyCriticalDays": {
+          "name": "autonomyCriticalDays",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 2
+        },
+        "discrepancyAlertPercent": {
+          "name": "discrepancyAlertPercent",
+          "type": "numeric(9, 3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'2'"
+        },
+        "staleAfterDays": {
+          "name": "staleAfterDays",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 7
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "lastSuppliedAt": {
+          "name": "lastSuppliedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdBy": {
+          "name": "createdBy",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "fuel_tank_unit_code_unique": {
+          "name": "fuel_tank_unit_code_unique",
+          "columns": [
+            {
+              "expression": "unitId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "fuel_tank_unit_active_idx": {
+          "name": "fuel_tank_unit_active_idx",
+          "columns": [
+            {
+              "expression": "unitId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "active",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "fuelTanks_unitId_units_id_fk": {
+          "name": "fuelTanks_unitId_units_id_fk",
+          "tableFrom": "fuelTanks",
+          "tableTo": "units",
+          "columnsFrom": [
+            "unitId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fuelTanks_createdBy_appUsers_id_fk": {
+          "name": "fuelTanks_createdBy_appUsers_id_fk",
+          "tableFrom": "fuelTanks",
+          "tableTo": "appUsers",
+          "columnsFrom": [
+            "createdBy"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.payrollAdjustmentReviews": {
+      "name": "payrollAdjustmentReviews",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "unitId": {
+          "name": "unitId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "caseId": {
+          "name": "caseId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "employeeId": {
+          "name": "employeeId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "closureRevision": {
+          "name": "closureRevision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "referenceMonth": {
+          "name": "referenceMonth",
+          "type": "varchar(7)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "originalAmountCents": {
+          "name": "originalAmountCents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "approvedAmountCents": {
+          "name": "approvedAmountCents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "justification": {
+          "name": "justification",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "payroll_review_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'aguardando_analise'"
+        },
+        "approvalBy": {
+          "name": "approvalBy",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "approvedAt": {
+          "name": "approvedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdBy": {
+          "name": "createdBy",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "payroll_review_case_employee_revision_unique": {
+          "name": "payroll_review_case_employee_revision_unique",
+          "columns": [
+            {
+              "expression": "caseId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "employeeId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "closureRevision",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payroll_review_unit_month_idx": {
+          "name": "payroll_review_unit_month_idx",
+          "columns": [
+            {
+              "expression": "unitId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "referenceMonth",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payroll_review_case_idx": {
+          "name": "payroll_review_case_idx",
+          "columns": [
+            {
+              "expression": "caseId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "payrollAdjustmentReviews_unitId_units_id_fk": {
+          "name": "payrollAdjustmentReviews_unitId_units_id_fk",
+          "tableFrom": "payrollAdjustmentReviews",
+          "tableTo": "units",
+          "columnsFrom": [
+            "unitId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "payrollAdjustmentReviews_caseId_discrepancyCases_id_fk": {
+          "name": "payrollAdjustmentReviews_caseId_discrepancyCases_id_fk",
+          "tableFrom": "payrollAdjustmentReviews",
+          "tableTo": "discrepancyCases",
+          "columnsFrom": [
+            "caseId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "payrollAdjustmentReviews_employeeId_employees_id_fk": {
+          "name": "payrollAdjustmentReviews_employeeId_employees_id_fk",
+          "tableFrom": "payrollAdjustmentReviews",
+          "tableTo": "employees",
+          "columnsFrom": [
+            "employeeId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "payrollAdjustmentReviews_approvalBy_appUsers_id_fk": {
+          "name": "payrollAdjustmentReviews_approvalBy_appUsers_id_fk",
+          "tableFrom": "payrollAdjustmentReviews",
+          "tableTo": "appUsers",
+          "columnsFrom": [
+            "approvalBy"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "payrollAdjustmentReviews_createdBy_appUsers_id_fk": {
+          "name": "payrollAdjustmentReviews_createdBy_appUsers_id_fk",
+          "tableFrom": "payrollAdjustmentReviews",
+          "tableTo": "appUsers",
+          "columnsFrom": [
+            "createdBy"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.stockMovements": {
+      "name": "stockMovements",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "unitId": {
+          "name": "unitId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tankId": {
+          "name": "tankId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "movementType": {
+          "name": "movementType",
+          "type": "stock_movement_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quantityLiters": {
+          "name": "quantityLiters",
+          "type": "numeric(14, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sourceKey": {
+          "name": "sourceKey",
+          "type": "varchar(220)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sourceClosureId": {
+          "name": "sourceClosureId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sourcePumpId": {
+          "name": "sourcePumpId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "supplier": {
+          "name": "supplier",
+          "type": "varchar(180)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "invoiceNumber": {
+          "name": "invoiceNumber",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "acquisitionValueCents": {
+          "name": "acquisitionValueCents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "documentKey": {
+          "name": "documentKey",
+          "type": "varchar(420)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "occurredAt": {
+          "name": "occurredAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "createdBy": {
+          "name": "createdBy",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "stock_movement_invoice_unique": {
+          "name": "stock_movement_invoice_unique",
+          "columns": [
+            {
+              "expression": "unitId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "tankId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "invoiceNumber",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "stock_movement_tank_time_idx": {
+          "name": "stock_movement_tank_time_idx",
+          "columns": [
+            {
+              "expression": "unitId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "tankId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "occurredAt",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "stock_movement_closure_pump_idx": {
+          "name": "stock_movement_closure_pump_idx",
+          "columns": [
+            {
+              "expression": "sourceClosureId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "sourcePumpId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "stockMovements_unitId_units_id_fk": {
+          "name": "stockMovements_unitId_units_id_fk",
+          "tableFrom": "stockMovements",
+          "tableTo": "units",
+          "columnsFrom": [
+            "unitId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "stockMovements_tankId_fuelTanks_id_fk": {
+          "name": "stockMovements_tankId_fuelTanks_id_fk",
+          "tableFrom": "stockMovements",
+          "tableTo": "fuelTanks",
+          "columnsFrom": [
+            "tankId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "stockMovements_sourceClosureId_closures_id_fk": {
+          "name": "stockMovements_sourceClosureId_closures_id_fk",
+          "tableFrom": "stockMovements",
+          "tableTo": "closures",
+          "columnsFrom": [
+            "sourceClosureId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "stockMovements_sourcePumpId_fuelPumps_id_fk": {
+          "name": "stockMovements_sourcePumpId_fuelPumps_id_fk",
+          "tableFrom": "stockMovements",
+          "tableTo": "fuelPumps",
+          "columnsFrom": [
+            "sourcePumpId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "stockMovements_createdBy_appUsers_id_fk": {
+          "name": "stockMovements_createdBy_appUsers_id_fk",
+          "tableFrom": "stockMovements",
+          "tableTo": "appUsers",
+          "columnsFrom": [
+            "createdBy"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "stockMovements_sourceKey_unique": {
+          "name": "stockMovements_sourceKey_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "sourceKey"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.tankMeasurements": {
+      "name": "tankMeasurements",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "unitId": {
+          "name": "unitId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tankId": {
+          "name": "tankId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "physicalLiters": {
+          "name": "physicalLiters",
+          "type": "numeric(14, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "theoreticalLiters": {
+          "name": "theoreticalLiters",
+          "type": "numeric(14, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "differenceLiters": {
+          "name": "differenceLiters",
+          "type": "numeric(14, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "differencePercent": {
+          "name": "differencePercent",
+          "type": "numeric(9, 3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "measuredAt": {
+          "name": "measuredAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "measuredBy": {
+          "name": "measuredBy",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "tank_measurement_latest_idx": {
+          "name": "tank_measurement_latest_idx",
+          "columns": [
+            {
+              "expression": "unitId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "tankId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "measuredAt",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "tankMeasurements_unitId_units_id_fk": {
+          "name": "tankMeasurements_unitId_units_id_fk",
+          "tableFrom": "tankMeasurements",
+          "tableTo": "units",
+          "columnsFrom": [
+            "unitId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "tankMeasurements_tankId_fuelTanks_id_fk": {
+          "name": "tankMeasurements_tankId_fuelTanks_id_fk",
+          "tableFrom": "tankMeasurements",
+          "tableTo": "fuelTanks",
+          "columnsFrom": [
+            "tankId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "tankMeasurements_measuredBy_appUsers_id_fk": {
+          "name": "tankMeasurements_measuredBy_appUsers_id_fk",
+          "tableFrom": "tankMeasurements",
+          "tableTo": "appUsers",
+          "columnsFrom": [
+            "measuredBy"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.tankPumpAssignments": {
+      "name": "tankPumpAssignments",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "unitId": {
+          "name": "unitId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pumpId": {
+          "name": "pumpId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tankId": {
+          "name": "tankId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdBy": {
+          "name": "createdBy",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "tank_pump_one_assignment_unique": {
+          "name": "tank_pump_one_assignment_unique",
+          "columns": [
+            {
+              "expression": "pumpId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "tank_assignment_unit_idx": {
+          "name": "tank_assignment_unit_idx",
+          "columns": [
+            {
+              "expression": "unitId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "tankId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "tankPumpAssignments_unitId_units_id_fk": {
+          "name": "tankPumpAssignments_unitId_units_id_fk",
+          "tableFrom": "tankPumpAssignments",
+          "tableTo": "units",
+          "columnsFrom": [
+            "unitId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "tankPumpAssignments_pumpId_fuelPumps_id_fk": {
+          "name": "tankPumpAssignments_pumpId_fuelPumps_id_fk",
+          "tableFrom": "tankPumpAssignments",
+          "tableTo": "fuelPumps",
+          "columnsFrom": [
+            "pumpId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "tankPumpAssignments_tankId_fuelTanks_id_fk": {
+          "name": "tankPumpAssignments_tankId_fuelTanks_id_fk",
+          "tableFrom": "tankPumpAssignments",
+          "tableTo": "fuelTanks",
+          "columnsFrom": [
+            "tankId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "tankPumpAssignments_createdBy_appUsers_id_fk": {
+          "name": "tankPumpAssignments_createdBy_appUsers_id_fk",
+          "tableFrom": "tankPumpAssignments",
+          "tableTo": "appUsers",
+          "columnsFrom": [
+            "createdBy"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.unitSettings": {
+      "name": "unitSettings",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "unitId": {
+          "name": "unitId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "settingKey": {
+          "name": "settingKey",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "settingValue": {
+          "name": "settingValue",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updatedBy": {
+          "name": "updatedBy",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "unit_setting_unique": {
+          "name": "unit_setting_unique",
+          "columns": [
+            {
+              "expression": "unitId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "settingKey",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "unitSettings_unitId_units_id_fk": {
+          "name": "unitSettings_unitId_units_id_fk",
+          "tableFrom": "unitSettings",
+          "tableTo": "units",
+          "columnsFrom": [
+            "unitId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "unitSettings_updatedBy_appUsers_id_fk": {
+          "name": "unitSettings_updatedBy_appUsers_id_fk",
+          "tableFrom": "unitSettings",
+          "tableTo": "appUsers",
+          "columnsFrom": [
+            "updatedBy"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.units": {
+      "name": "units",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "legalName": {
+          "name": "legalName",
+          "type": "varchar(180)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tradeName": {
+          "name": "tradeName",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cnpj": {
+          "name": "cnpj",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "address": {
+          "name": "address",
+          "type": "varchar(240)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "city": {
+          "name": "city",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "state": {
+          "name": "state",
+          "type": "varchar(2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "postalCode": {
+          "name": "postalCode",
+          "type": "varchar(12)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.app_user_role": {
+      "name": "app_user_role",
+      "schema": "public",
+      "values": [
+        "frentista",
+        "gerente",
+        "administrador"
+      ]
+    },
+    "public.closure_result": {
+      "name": "closure_result",
+      "schema": "public",
+      "values": [
+        "pendente",
+        "conferido",
+        "sobra",
+        "falta"
+      ]
+    },
+    "public.closure_shift": {
+      "name": "closure_shift",
+      "schema": "public",
+      "values": [
+        "manha",
+        "tarde",
+        "noite"
+      ]
+    },
+    "public.closure_status": {
+      "name": "closure_status",
+      "schema": "public",
+      "values": [
+        "rascunho",
+        "aguardando_conferencia",
+        "finalizado",
+        "reaberto"
+      ]
+    },
+    "public.discrepancy_status": {
+      "name": "discrepancy_status",
+      "schema": "public",
+      "values": [
+        "pendente_analise",
+        "em_investigacao",
+        "justificada",
+        "encerrada_sem_desconto",
+        "encaminhada_administrativo",
+        "resolvida",
+        "cancelada_por_correcao"
+      ]
+    },
+    "public.discrepancy_type": {
+      "name": "discrepancy_type",
+      "schema": "public",
+      "values": [
+        "sobra",
+        "falta"
+      ]
+    },
+    "public.fuel_type": {
+      "name": "fuel_type",
+      "schema": "public",
+      "values": [
+        "gasolina_comum",
+        "diesel_s10"
+      ]
+    },
+    "public.payment_method": {
+      "name": "payment_method",
+      "schema": "public",
+      "values": [
+        "dinheiro",
+        "pix",
+        "debito",
+        "credito"
+      ]
+    },
+    "public.payroll_review_status": {
+      "name": "payroll_review_status",
+      "schema": "public",
+      "values": [
+        "nao_elegivel",
+        "aguardando_analise",
+        "aguardando_autorizacao",
+        "aprovado",
+        "rejeitado",
+        "encaminhado_folha",
+        "processado"
+      ]
+    },
+    "public.stock_movement_type": {
+      "name": "stock_movement_type",
+      "schema": "public",
+      "values": [
+        "opening",
+        "receipt",
+        "sale",
+        "writeoff",
+        "correction"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

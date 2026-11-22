@@ -78,6 +78,10 @@ describe("closure print document", () => {
     expect(html).toContain("2026-11-20");
     expect(html).toContain("Frentista Teste");
     expect(html).toContain("Responsável Teste");
+    expect(html).toContain("GASOLINA COMUM");
+    expect(html).toContain("DIESEL S10");
+    expect(html).toContain("fuel-type-gasoline");
+    expect(html).toContain("fuel-type-diesel");
     for (const pump of ["Bico 01", "Bico 02", "Bico 03", "Bico 04"])
       expect(html).toContain(pump);
     for (const method of ["Dinheiro", "PIX", "Débito", "Crédito"])

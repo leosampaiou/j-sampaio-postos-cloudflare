@@ -20,6 +20,13 @@ export function shiftCalendarDate(date: string, days: number): string {
   return shifted.toISOString().slice(0, 10);
 }
 
+export function lastDayOfMonth(date: string): string {
+  if (!isValidCalendarDate(date))
+    throw new RangeError("Data de calendário inválida.");
+  const [year, month] = date.split("-").map(Number);
+  return new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
+}
+
 export function isValidCalendarDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const parsed = new Date(`${value}T00:00:00.000Z`);

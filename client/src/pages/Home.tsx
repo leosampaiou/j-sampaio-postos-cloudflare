@@ -3,8 +3,10 @@ import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import {
   businessDateInSaoPaulo,
+  lastDayOfMonth,
   shiftCalendarDate,
 } from "@shared/businessDate";
+import { FuelTypeBadge } from "@/components/FuelType";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -564,10 +566,11 @@ function EmptyPanel({
 }
 
 function Dashboard({ user }: { user: User }) {
-  const [range, setRange] = useState("7");
+  const [range, setRange] = useState("month");
   const [customFrom, setCustomFrom] = useState(dateToday());
   const [customTo, setCustomTo] = useState(dateToday());
   const today = dateToday();
+  const currentMonthEnd = lastDayOfMonth(today);
   const yesterday = shiftCalendarDate(today, -1);
   const previousMonthTo = shiftCalendarDate(`${today.slice(0, 7)}-01`, -1);
   const from =
@@ -591,7 +594,9 @@ function Dashboard({ user }: { user: User }) {
         ? yesterday
         : range === "previousMonth"
           ? previousMonthTo
-          : today;
+          : range === "month"
+            ? currentMonthEnd
+            : today;
   const validCustomRange =
     range !== "custom" ||
     (Boolean(customFrom && customTo) && customFrom <= customTo);
@@ -663,8 +668,6 @@ function Dashboard({ user }: { user: User }) {
     metricsUnavailable ? "—" : brl(value ?? 0);
   const displayLiters = (value?: number) =>
     metricsUnavailable ? "—" : liters(value ?? 0);
-  const displayCount = (value?: number) =>
-    metricsUnavailable ? "—" : String(value ?? 0);
   const chart =
     data?.byDay.map(row => ({
       ...row,
@@ -823,27 +826,6 @@ function Dashboard({ user }: { user: User }) {
           tone="blue"
         />
         <StatCard
-          label="Recebido no período"
-          value={displayMoney(totals?.monthReceivedCents)}
-          sub={periodLabel}
-          icon={Wallet}
-          tone="navy"
-        />
-        <StatCard
-          label="Fechamentos conferidos"
-          value={displayCount(totals?.confirmedCount)}
-          sub={periodLabel}
-          icon={CheckCircle2}
-          tone="green"
-        />
-        <StatCard
-          label="Fechamentos com divergência"
-          value={displayCount(totals?.discrepancyCount)}
-          sub={periodLabel}
-          icon={CircleAlert}
-          tone="red"
-        />
-        <StatCard
           label="Saldo de caixa"
           value={metricsUnavailable ? "—" : brl(balance)}
           sub={balanceStatus}
@@ -996,12 +978,7 @@ function Dashboard({ user }: { user: User }) {
                 <div className="fuel-item" key={key}>
                   <div className="fuel-item-head">
                     <span>
-                      <i
-                        className={
-                          key === "diesel_s10" ? "fuel-dot diesel" : "fuel-dot"
-                        }
-                      />
-                      {key === "diesel_s10" ? "Diesel S10" : "Gasolina comum"}
+                      <FuelTypeBadge fuelType={key} />
                     </span>
                     <strong>{liters(val.liters)}</strong>
                   </div>
@@ -1377,6 +1354,8 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
         await Promise.all([
           utils.closures.list.invalidate(),
           utils.closures.listPage.invalidate(),
+          utils.inventory.dashboard.invalidate(),
+          utils.analytics.dashboard.invalidate(),
         ]);
         toast.success(
           outcome.status === "finalizado"
@@ -1677,11 +1656,7 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
                         <tr key={p.id}>
                           <td data-label="Bico / combustível">
                             <strong>{p.number}</strong>
-                            <small>
-                              {p.fuelType === "diesel_s10"
-                                ? "Diesel S10"
-                                : "Gasolina comum"}
-                            </small>
+                            <FuelTypeBadge fuelType={p.fuelType} />
                           </td>
                           <td data-label="Leitura inicial">
                             <Input
@@ -2185,6 +2160,7 @@ type ParticipantOption = { id: number; fullName: string };
 
 function HistoryPage({ user }: { user: User }) {
   const [, setLocation] = useLocation();
+  const utils = trpc.useUtils();
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [selected, setSelected] = useState<number | null>(
@@ -2210,13 +2186,25 @@ function HistoryPage({ user }: { user: User }) {
   );
   const confirm = trpc.closures.confirm.useMutation({
     onSuccess: async () => {
-      await Promise.all([query.refetch(), detail.refetch()]);
+      await Promise.all([
+        query.refetch(),
+        detail.refetch(),
+        utils.inventory.dashboard.invalidate(),
+        utils.analytics.dashboard.invalidate(),
+      ]);
       toast.success("Fechamento conferido após revisão explícita do rateio.");
     },
     onError: error => toast.error(error.message),
   });
   const reopen = trpc.closures.reopen.useMutation({
-    onSuccess: () => query.refetch(),
+    onSuccess: async () => {
+      await Promise.all([
+        query.refetch(),
+        detail.refetch(),
+        utils.inventory.dashboard.invalidate(),
+        utils.analytics.dashboard.invalidate(),
+      ]);
+    },
     onError: error => toast.error(error.message),
   });
   const confirmClosure = (participants: ConfirmedParticipant[]) => {
@@ -2475,9 +2463,7 @@ function DetailModal({
                       <tr key={nozzle.id}>
                         <td>{nozzle.pumpNumber}</td>
                         <td>
-                          {nozzle.fuelType === "diesel_s10"
-                            ? "Diesel S10"
-                            : "Gasolina Comum"}
+                          <FuelTypeBadge fuelType={nozzle.fuelType} />
                         </td>
                         <td>{nozzle.initialReading}</td>
                         <td>{nozzle.finalReading}</td>
@@ -3389,7 +3375,10 @@ function SettingsPage() {
           />
           <div className="form-grid">
             <div className="field">
-              <Label>Gasolina comum · preço por litro</Label>
+              <Label>
+                <FuelTypeBadge fuelType="gasolina_comum" />
+                Preço por litro
+              </Label>
               <div className="currency-input">
                 <span>R$</span>
                 <Input
@@ -3402,7 +3391,10 @@ function SettingsPage() {
               </div>
             </div>
             <div className="field">
-              <Label>Diesel S10 · preço por litro</Label>
+              <Label>
+                <FuelTypeBadge fuelType="diesel_s10" />
+                Preço por litro
+              </Label>
               <div className="currency-input">
                 <span>R$</span>
                 <Input

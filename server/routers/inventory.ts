@@ -18,12 +18,15 @@ import {
   isValidCalendarDate,
   shiftCalendarDate,
 } from "../../shared/businessDate";
+import { FUEL_TYPES } from "../../shared/fuel";
 import {
   autonomyInDays,
   classifyStockHealth,
   roundLiters,
   summarizeTankSalesWindow,
   suggestedReplenishmentLiters,
+  type TankAssignmentRecord,
+  type TankSalesRecord,
 } from "../../shared/inventory";
 import { adminProcedure, managerProcedure, router } from "../_core/trpc";
 
@@ -42,7 +45,7 @@ export const positiveLitersInput = z
 const dateInput = z
   .string()
   .refine(isValidCalendarDate, "Informe uma data de calendário válida.");
-const fuelNameInput = z.string().trim().min(2).max(80);
+const fuelNameInput = z.enum(FUEL_TYPES);
 const safeNumber = (value: unknown) => Number(value ?? 0);
 
 async function logAudit(
@@ -133,54 +136,138 @@ export const inventoryRouter = router({
 
       const today = businessDateInSaoPaulo();
       const from30 = shiftCalendarDate(today, -29);
-      const [movements, measurements, assignments, pumps, sales] =
-        await Promise.all([
-          db
-            .select()
-            .from(stockMovements)
-            .where(eq(stockMovements.unitId, ctx.user.unitId))
-            .orderBy(asc(stockMovements.occurredAt), asc(stockMovements.id)),
-          db
-            .select()
-            .from(tankMeasurements)
-            .where(eq(tankMeasurements.unitId, ctx.user.unitId))
-            .orderBy(
-              desc(tankMeasurements.measuredAt),
-              desc(tankMeasurements.id)
-            ),
-          db
-            .select()
-            .from(tankPumpAssignments)
-            .where(eq(tankPumpAssignments.unitId, ctx.user.unitId)),
-          db
-            .select()
-            .from(fuelPumps)
-            .where(
-              and(
-                eq(fuelPumps.unitId, ctx.user.unitId),
-                eq(fuelPumps.active, true)
-              )
-            ),
-          db
-            .select({
-              pumpId: closureNozzles.pumpId,
-              liters: closureNozzles.liters,
-              closureDate: closures.closureDate,
-            })
-            .from(closureNozzles)
-            .innerJoin(closures, eq(closureNozzles.closureId, closures.id))
-            .where(
-              and(
-                eq(closures.unitId, ctx.user.unitId),
-                eq(closures.status, "finalizado"),
-                gte(closures.closureDate, from30),
-                lte(closures.closureDate, today)
-              )
-            ),
-        ]);
+      const [
+        movements,
+        measurements,
+        assignments,
+        pumps,
+        sales,
+        assignmentEvents,
+        allTanks,
+      ] = await Promise.all([
+        db
+          .select()
+          .from(stockMovements)
+          .where(eq(stockMovements.unitId, ctx.user.unitId))
+          .orderBy(asc(stockMovements.occurredAt), asc(stockMovements.id)),
+        db
+          .select()
+          .from(tankMeasurements)
+          .where(eq(tankMeasurements.unitId, ctx.user.unitId))
+          .orderBy(
+            desc(tankMeasurements.measuredAt),
+            desc(tankMeasurements.id)
+          ),
+        db
+          .select()
+          .from(tankPumpAssignments)
+          .where(eq(tankPumpAssignments.unitId, ctx.user.unitId)),
+        db
+          .select()
+          .from(fuelPumps)
+          .where(eq(fuelPumps.unitId, ctx.user.unitId)),
+        db
+          .select({
+            closureId: closures.id,
+            pumpId: closureNozzles.pumpId,
+            liters: closureNozzles.liters,
+            fuelType: closureNozzles.fuelType,
+            closureDate: closures.closureDate,
+            shift: closures.shift,
+            finalizedAt: closures.finalizedAt,
+          })
+          .from(closureNozzles)
+          .innerJoin(closures, eq(closureNozzles.closureId, closures.id))
+          .where(
+            and(
+              eq(closures.unitId, ctx.user.unitId),
+              eq(closures.status, "finalizado"),
+              gte(closures.closureDate, from30),
+              lte(closures.closureDate, today)
+            )
+          ),
+        db
+          .select({
+            targetId: auditEvents.targetId,
+            field: auditEvents.field,
+            beforeValue: auditEvents.beforeValue,
+            afterValue: auditEvents.afterValue,
+            reason: auditEvents.reason,
+            createdAt: auditEvents.createdAt,
+          })
+          .from(auditEvents)
+          .where(
+            and(
+              eq(auditEvents.unitId, ctx.user.unitId),
+              eq(auditEvents.targetType, "tank_assignment"),
+              eq(auditEvents.action, "assigned")
+            )
+          )
+          .orderBy(asc(auditEvents.createdAt), asc(auditEvents.id)),
+        db
+          .select({ id: fuelTanks.id, code: fuelTanks.code })
+          .from(fuelTanks)
+          .where(eq(fuelTanks.unitId, ctx.user.unitId)),
+      ]);
 
       const windowDays = input?.windowDays ?? 7;
       const windowStart = shiftCalendarDate(today, -(windowDays - 1));
+      const parseTankId = (value: string | null) => {
+        if (!value) return null;
+        const parsed = Number(value);
+        return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+      };
+      const history: TankAssignmentRecord[] = [];
+      for (const event of assignmentEvents) {
+        const pump = pumps.find(item => item.id === event.targetId);
+        const effectiveAt = event.createdAt;
+        const previousTankId =
+          event.field === "tankId" ? parseTankId(event.beforeValue) : null;
+        if (previousTankId !== null)
+          history.push({
+            pumpId: event.targetId,
+            tankId: previousTankId,
+            effectiveAt: new Date(effectiveAt.getTime() - 1),
+          });
+
+        const recordedTankId =
+          event.field === "tankId" ? parseTankId(event.afterValue) : null;
+        const legacyTank =
+          event.field === "tankId" || !pump || !event.reason
+            ? undefined
+            : allTanks.find(
+                tank =>
+                  event.reason ===
+                  `Bico ${pump.number} vinculado ao tanque ${tank.code}.`
+              );
+        const tankId = recordedTankId ?? legacyTank?.id ?? null;
+        if (tankId !== null)
+          history.push({
+            pumpId: event.targetId,
+            tankId,
+            effectiveAt,
+          });
+      }
+      for (const assignment of assignments) {
+        history.push({
+          pumpId: assignment.pumpId,
+          tankId: assignment.tankId,
+          effectiveAt: assignment.createdAt,
+        });
+      }
+      const salesRows: TankSalesRecord[] = sales.flatMap(row =>
+        row.finalizedAt
+          ? [
+              {
+                ...row,
+                finalizedAt: row.finalizedAt,
+                liters: safeNumber(row.liters),
+              },
+            ]
+          : []
+      );
+      const activePumps = pumps.filter(pump => pump.active);
+      const activePumpIds = new Set(activePumps.map(pump => pump.id));
       const summaries = tanks.map(tank => {
         const tankMovements = movements.filter(row => row.tankId === tank.id);
         const stockLiters = roundLiters(
@@ -206,12 +293,17 @@ export const inventoryRouter = router({
             tank.staleAfterDays * 86_400_000;
         const assignedPumpIds = new Set(
           assignments
-            .filter(item => item.tankId === tank.id)
+            .filter(
+              item => item.tankId === tank.id && activePumpIds.has(item.pumpId)
+            )
             .map(item => item.pumpId)
         );
         const windowSummary = summarizeTankSalesWindow(
-          sales.map(row => ({ ...row, liters: safeNumber(row.liters) })),
+          salesRows,
           assignedPumpIds,
+          history,
+          tank.id,
+          tank.fuelType,
           windowStart,
           today,
           tank.stockStartDate
@@ -236,13 +328,10 @@ export const inventoryRouter = router({
         });
         const dataQuality =
           !assignedPumpIds.size ||
-          !relevantSales.length ||
+          availableDays < 3 ||
           availableDays < windowDays
             ? ("baixa" as const)
-            : new Set(relevantSales.map(row => row.closureDate)).size <
-                availableDays
-              ? ("baixa" as const)
-              : ("adequada" as const);
+            : ("adequada" as const);
         const daysUntilEmpty =
           autonomyDays === null ? null : Math.ceil(autonomyDays);
         const expectedEmptyDate =
@@ -303,17 +392,24 @@ export const inventoryRouter = router({
             message: `Sem atualização recente há mais de ${tank.staleAfterDays} dias.`,
           });
         const pumpsAssigned = assignments
-          .filter(item => item.tankId === tank.id)
-          .map(item => pumps.find(pump => pump.id === item.pumpId))
+          .filter(
+            item => item.tankId === tank.id && activePumpIds.has(item.pumpId)
+          )
+          .map(item => activePumps.find(pump => pump.id === item.pumpId))
           .filter(Boolean);
-        const suggestedLiters = suggestedReplenishmentLiters({
-          stockLiters,
-          operationalCapacityLiters: safeNumber(tank.operationalCapacityLiters),
-          minimumLiters: safeNumber(tank.minimumStockLiters),
-          averageDailyLiters,
-          leadDays: tank.replenishmentLeadDays,
-          safetyReserveLiters: safeNumber(tank.safetyReserveLiters),
-        });
+        const suggestedLiters =
+          averageDailyLiters > 0
+            ? suggestedReplenishmentLiters({
+                stockLiters,
+                operationalCapacityLiters: safeNumber(
+                  tank.operationalCapacityLiters
+                ),
+                minimumLiters: safeNumber(tank.minimumStockLiters),
+                averageDailyLiters,
+                leadDays: tank.replenishmentLeadDays,
+                safetyReserveLiters: safeNumber(tank.safetyReserveLiters),
+              })
+            : 0;
         return {
           ...tank,
           stockLiters,
@@ -333,8 +429,11 @@ export const inventoryRouter = router({
           averages: [7, 15, 30].map(days => {
             const start = shiftCalendarDate(today, -(days - 1));
             const window = summarizeTankSalesWindow(
-              sales.map(row => ({ ...row, liters: safeNumber(row.liters) })),
+              salesRows,
               assignedPumpIds,
+              history,
+              tank.id,
+              tank.fuelType,
               start,
               today,
               tank.stockStartDate
@@ -617,6 +716,18 @@ export const inventoryRouter = router({
             "O combustível do bico precisa corresponder ao combustível do tanque.",
         });
       await db.transaction(async tx => {
+        const [current] = await tx
+          .select({ tankId: tankPumpAssignments.tankId })
+          .from(tankPumpAssignments)
+          .where(
+            and(
+              eq(tankPumpAssignments.unitId, ctx.user.unitId),
+              eq(tankPumpAssignments.pumpId, pump.id)
+            )
+          )
+          .for("update");
+        if (current?.tankId === tank.id) return;
+        const assignedAt = new Date();
         await tx
           .insert(tankPumpAssignments)
           .values({
@@ -630,18 +741,21 @@ export const inventoryRouter = router({
             set: {
               tankId: tank.id,
               createdBy: ctx.user.id,
-              createdAt: new Date(),
+              createdAt: assignedAt,
             },
           });
-        await logAudit(
-          tx,
-          ctx.user.unitId,
-          ctx.user.id,
-          "tank_assignment",
-          pump.id,
-          "assigned",
-          `Bico ${pump.number} vinculado ao tanque ${tank.code}.`
-        );
+        await tx.insert(auditEvents).values({
+          unitId: ctx.user.unitId,
+          userId: ctx.user.id,
+          targetType: "tank_assignment",
+          targetId: pump.id,
+          action: "assigned",
+          field: "tankId",
+          beforeValue: current ? String(current.tankId) : null,
+          afterValue: String(tank.id),
+          reason: `Bico ${pump.number} vinculado ao tanque ${tank.code}.`,
+          createdAt: assignedAt,
+        });
       });
       return { success: true };
     }),

@@ -686,16 +686,6 @@ button:disabled {
   color: #29364b;
   font-size: 0.6875rem;
 }
-.fuel-dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 3px;
-  background: var(--navy-2);
-}
-.fuel-dot.diesel {
-  background: var(--yellow);
-}
 .meter {
   height: 7px;
   background: #f0f2f6;
@@ -2917,7 +2907,7 @@ button:disabled {
   }
   .discrepancy-notice,
   .stock-note {
-    font-size: 0.5rem;
+    font-size: 0.75rem;
     padding: 10px;
   }
   .discrepancy-history-panel,
@@ -2996,12 +2986,12 @@ button:disabled {
     border-bottom: 1px solid #eef0f4;
     white-space: normal;
     overflow-wrap: anywhere;
-    font-size: 0.625rem;
+    font-size: 0.75rem;
   }
   .nozzle-table tbody td::before {
     content: attr(data-label);
     color: #8994a4;
-    font-size: 0.5rem;
+    font-size: 0.625rem;
     font-weight: 750;
     line-height: 1.25;
   }
@@ -3038,7 +3028,7 @@ button:disabled {
   .nozzle-table tfoot td {
     display: block;
     padding: 9px 7px;
-    font-size: 0.5625rem;
+    font-size: 0.6875rem;
     white-space: normal;
   }
   .nozzle-table tfoot td[colspan="3"] {
@@ -3418,7 +3408,94 @@ button:disabled {
   text-align: center;
   line-height: 1.5;
 }
-/* No dashboard, os tanques são apresentados em sequência vertical: gasolina antes do diesel. */
+.fuel-type-badge {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: max(0.6875rem, 0.78em);
+  font-weight: 800;
+  line-height: 1.35;
+  letter-spacing: 0.025em;
+  white-space: nowrap;
+}
+.fuel-type-badge svg {
+  flex: 0 0 auto;
+}
+.fuel-type-gasoline {
+  color: #874100;
+  background: #fff0d9;
+  border-color: #eac58e;
+}
+.fuel-type-diesel {
+  color: #81252e;
+  background: #fce9eb;
+  border-color: #e4aeb4;
+}
+.fuel-type-unknown {
+  color: #465268;
+  background: #eef1f6;
+  border-color: #dce2eb;
+}
+.fuel-type-radio-group {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.fuel-type-choice {
+  display: flex;
+  min-width: 0;
+  min-height: 46px;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+}
+.fuel-type-choice input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  margin: 0;
+  accent-color: var(--navy);
+}
+.fuel-type-choice:has(input:checked) {
+  border-color: #9aa8bd;
+  box-shadow: 0 0 0 2px #102e6312;
+}
+.fuel-type-choice:focus-within {
+  outline: 3px solid #7ca0df66;
+  outline-offset: 2px;
+}
+.fuel-type-filter {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+.fuel-type-filter > label {
+  color: #566276;
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+.fuel-type-filter .select-control {
+  min-width: 0;
+  width: 100%;
+}
+.fuel-type-filter > .fuel-type-badge {
+  justify-self: start;
+}
 .dashboard-tank-card-grid {
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr));
+}
+@media (max-width: 620px) {
+  .dashboard-tank-card-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

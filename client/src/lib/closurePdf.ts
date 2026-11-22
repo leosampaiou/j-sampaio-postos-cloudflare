@@ -1,12 +1,9 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import { fuelTypeLabel, fuelTypeOption } from "@shared/fuel";
 
 const money = (cents: number) =>
   (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-const fuelNames: Record<string, string> = {
-  gasolina_comum: "Gasolina Comum",
-  diesel_s10: "Diesel S10",
-};
 const paymentNames: Record<string, string> = {
   dinheiro: "Dinheiro",
   pix: "PIX",
@@ -98,7 +95,7 @@ export async function createClosurePdf(closure: any) {
     ],
     body: (closure.nozzles ?? []).map((n: any) => [
       n.pumpNumber,
-      fuelNames[n.fuelType] ?? n.fuelType,
+      fuelTypeLabel(n.fuelType),
       String(n.initialReading),
       String(n.finalReading),
       Number(n.liters).toLocaleString("pt-BR", {
@@ -113,6 +110,17 @@ export async function createClosurePdf(closure: any) {
     bodyStyles: { fontSize: 7, cellPadding: 2 },
     styles: { overflow: "linebreak" },
     margin: { left: 14, right: 14 },
+    didParseCell: data => {
+      if (data.section !== "body" || data.column.index !== 1) return;
+      const fuelType = closure.nozzles?.[data.row.index]?.fuelType;
+      const option = fuelType ? fuelTypeOption(fuelType) : undefined;
+      if (!option) return;
+      data.cell.styles.fontStyle = "bold";
+      data.cell.styles.textColor =
+        option.tone === "gasoline" ? [150, 70, 0] : [135, 35, 45];
+      data.cell.styles.fillColor =
+        option.tone === "gasoline" ? [255, 241, 221] : [252, 233, 235];
+    },
   });
   let y = (doc as any).lastAutoTable.finalY + 8;
   const gas = (closure.nozzles ?? []).filter(
@@ -125,20 +133,39 @@ export async function createClosurePdf(closure: any) {
   doc.setFontSize(9);
   doc.text("RESUMO DE VENDAS", 14, y);
   y += 6;
-  doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
-  doc.text(
-    `Gasolina Comum: ${gas.reduce((s: number, n: any) => s + Number(n.liters), 0).toLocaleString("pt-BR")} L  •  ${money(gas.reduce((s: number, n: any) => s + n.valueCents, 0))}`,
-    14,
-    y
-  );
-  y += 5;
-  doc.text(
-    `Diesel S10: ${diesel.reduce((s: number, n: any) => s + Number(n.liters), 0).toLocaleString("pt-BR")} L  •  ${money(diesel.reduce((s: number, n: any) => s + n.valueCents, 0))}`,
-    14,
-    y
-  );
-  y += 5;
+  const drawFuelSummary = (fuelType: string, rows: any[]) => {
+    const option = fuelTypeOption(fuelType);
+    const textColor =
+      option?.tone === "gasoline" ? [150, 70, 0] : [135, 35, 45];
+    const fillColor =
+      option?.tone === "gasoline" ? [255, 241, 221] : [252, 233, 235];
+    const label = fuelTypeLabel(fuelType);
+    const labelWidth = doc.getTextWidth(label) + 4;
+    doc.setFillColor(...(fillColor as [number, number, number]));
+    doc.roundedRect(14, y - 3.3, labelWidth, 5, 1.2, 1.2, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...(textColor as [number, number, number]));
+    doc.text(label, 16, y);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(35, 45, 60);
+    const totalLiters = rows.reduce(
+      (sum: number, row: any) => sum + Number(row.liters),
+      0
+    );
+    const totalSales = rows.reduce(
+      (sum: number, row: any) => sum + row.valueCents,
+      0
+    );
+    doc.text(
+      `${totalLiters.toLocaleString("pt-BR")} L  •  ${money(totalSales)}`,
+      14 + labelWidth + 3,
+      y
+    );
+    y += 5;
+  };
+  drawFuelSummary("gasolina_comum", gas);
+  drawFuelSummary("diesel_s10", diesel);
   doc.setFont("helvetica", "bold");
   doc.text(
     `TOTAL: ${money(closure.salesCents)}  •  ${(closure.nozzles ?? []).reduce((s: number, n: any) => s + Number(n.liters), 0).toLocaleString("pt-BR")} litros`,

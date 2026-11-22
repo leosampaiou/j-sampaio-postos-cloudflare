@@ -1,3 +1,5 @@
+import { fuelTypeLabel, fuelTypeOption } from "@shared/fuel";
+
 export type ClosurePrintInput = {
   closureDate: string;
   shift: string;
@@ -62,13 +64,11 @@ const dateLabel = (value: string) =>
   new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR");
 const dateTimeLabel = (value?: string | Date | null) =>
   value ? new Date(value).toLocaleString("pt-BR") : "—";
-const fuelLabel = (value: string) =>
-  (
-    ({ gasolina_comum: "Gasolina Comum", diesel_s10: "Diesel S10" }) as Record<
-      string,
-      string
-    >
-  )[value] ?? value;
+const fuelBadge = (value: string) => {
+  const option = fuelTypeOption(value);
+  const tone = option?.tone ?? "unknown";
+  return `<span class="fuel-type-badge fuel-type-${tone}">${escapeHtml(fuelTypeLabel(value))}</span>`;
+};
 const paymentLabel = (value: string) =>
   (
     ({
@@ -125,7 +125,7 @@ export function buildClosurePrintHtml(closure: ClosurePrintInput, origin = "") {
       nozzle => `
     <tr>
       <td>${escapeHtml(nozzle.pumpNumber)}</td>
-      <td>${escapeHtml(fuelLabel(nozzle.fuelType))}</td>
+      <td>${fuelBadge(nozzle.fuelType)}</td>
       <td class="numeric">${escapeHtml(nozzle.initialReading)}</td>
       <td class="numeric">${escapeHtml(nozzle.finalReading)}</td>
       <td class="numeric">${escapeHtml(liters(nozzle.liters))}</td>
@@ -143,7 +143,7 @@ export function buildClosurePrintHtml(closure: ClosurePrintInput, origin = "") {
   const fuelRows = [...fuelTotals]
     .map(
       ([fuel, total]) => `
-    <tr><td>${escapeHtml(fuelLabel(fuel))}</td><td class="numeric">${escapeHtml(liters(total.liters))}</td><td class="numeric">${escapeHtml(money(total.valueCents))}</td></tr>`
+    <tr><td>${fuelBadge(fuel)}</td><td class="numeric">${escapeHtml(liters(total.liters))}</td><td class="numeric">${escapeHtml(money(total.valueCents))}</td></tr>`
     )
     .join("");
   const result = resultLabel(closure.result);
@@ -180,6 +180,10 @@ export function buildClosurePrintHtml(closure: ClosurePrintInput, origin = "") {
     th, td { padding: 6px 5px; border: 1px solid #d9e0ea; vertical-align: top; }
     tr { break-inside: avoid; page-break-inside: avoid; }
     .numeric { text-align: right; white-space: nowrap; }
+    .fuel-type-badge { display: inline-block; padding: 2px 7px; border: 1px solid transparent; border-radius: 999px; font-size: 8pt; font-weight: 700; white-space: nowrap; }
+    .fuel-type-gasoline { color: #8b4300; background: #fff0d9; border-color: #efc88c; }
+    .fuel-type-diesel { color: #84262e; background: #fce9eb; border-color: #e6afb4; }
+    .fuel-type-unknown { color: #465268; background: #eef1f6; border-color: #dce2eb; }
     .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: start; }
     .total-box { margin-top: 9px; padding: 10px 12px; border: 1px solid #d9e0ea; border-radius: 5px; }
     .total-row { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; }

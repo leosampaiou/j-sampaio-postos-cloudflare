@@ -1231,3 +1231,30 @@ Nenhum deploy, escrita remota, DDL, acesso ao MySQL antigo ou aos objetos antigo
 - Foram adicionadas validações de data civil real nos schemas de fechamento e filtros de período de fechamentos, dashboard, relatório e divergências; volume mínimo de entrada/baixa é 0,001 L; valor aprovado continua limitado nas transições posteriores; `system.notifyOwner` está desativada até escolha de canal pelo usuário.
 - A suíte e o bundle não validam PostgreSQL/Hyperdrive nem autenticação real no Worker. Permanecem abertos: concorrência/atomicidade, intervalos invertidos e limites numéricos, locks/transações/numeric no PostgreSQL, custo de scrypt, substituição Forge por R2 privado e verificação de automações externas.
 - Esta atualização não conclui o aceite integrado nem autoriza ativar tRPC ou conectar recursos remotos. Neon segue vazio; sem DDL, dados sintéticos remotos, bucket, Worker, Hyperdrive, deploy, DNS/produção, commit/push, acesso a dados/objetos antigos ou custos pagos.
+
+
+## Melhorias de autonomia, dashboard e combustível — solicitação atual
+
+### [x] Autonomia dos tanques
+- Calcular autonomia usando o estoque teórico atual e somente vendas finalizadas do combustível correspondente aos bicos vinculados ao tanque no instante real de finalização de cada fechamento.
+- Reconstruir o histórico de vínculo bico–tanque a partir dos registros estruturados e do formato legado de auditoria; mudar um vínculo não pode reclassificar vendas históricas para o tanque novo.
+- Considerar uma amostra diária apenas quando houver exatamente um fechamento finalizado de cada turno (manhã, tarde e noite) e todos os bicos do tanque naquela data tiverem dados válidos; não tratar turnos ausentes como vendas zero.
+- Atualizar resumo e autonomia após cada fechamento finalizado; sem dados suficientes, com menos de três dias completos, sem bicos ativos vinculados ou com média zero, não inventar previsão e comunicar a confiabilidade/ausência de dados.
+- Preservar as médias de 7, 15 e 30 dias, o início de estoque do tanque, alertas, capacidade, reposição e demais dados operacionais.
+
+### [x] Dashboard e período padrão
+- Ao entrar novamente no dashboard, iniciar no mês corrente, do primeiro ao último dia-calendário daquele mês; manter as outras opções e o período manual selecionado até nova navegação/entrada no dashboard.
+- Remover somente os cards “Recebido no período”, “Fechamentos conferidos” e “Fechamentos com divergência” do dashboard; preservar consultas, registros e recursos dessas áreas em outros módulos.
+- Manter “Saldo de caixa”, calculado como sobras menos faltas no período selecionado, os demais indicadores não mencionados, os filtros e os tanques logo abaixo dos indicadores financeiros.
+- Manter gasolina antes de diesel nos cartões de tanques; usar várias colunas no desktop conforme espaço disponível e uma coluna em telas de até 620 px.
+
+### [x] Identificação consistente dos combustíveis
+- Exibir sempre nome explícito e legível: “GASOLINA COMUM” em laranja e “DIESEL S10” em vermelho, em telas, formulários, filtros, cadastro/estoque, vínculos bico–tanque, fechamentos, histórico, gráficos/relatórios, exportações e documentos PDF/impressos.
+- Distinguir cores do combustível das cores de status de sucesso, alerta e divergência; manter contraste e preservar rótulos de combustíveis desconhecidos sem alterar dados persistidos.
+- Não reclassificar nem migrar combustíveis já gravados; validar correspondência entre combustível do bico e tanque sem mudar registros históricos.
+
+### [ ] Experiência mobile e regressão desktop
+- Revisar legibilidade e escala de fonte conforme as preferências do dispositivo, formulários, filtros, dashboard, tabelas, tanques, navegação e documentos em Android/telas pequenas, sem prejudicar a experiência desktop.
+- Preservar dados, regras de negócio, módulos, recursos e exportações não citados; evitar dependências desnecessárias.
+- Validar tipos, suíte de testes e build; corrigir falhas encontradas, buscar e integrar `origin/main` preservando ambos os lados, repetir as verificações afetadas e fazer commit e push normal para `origin main`, sem force-push.
+- Não realizar deploy ou publicação.

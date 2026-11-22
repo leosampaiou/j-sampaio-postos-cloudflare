@@ -20,6 +20,12 @@ import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import QueryError from "@/components/QueryError";
 import {
+  FuelTypeBadge,
+  FuelTypeFilter,
+  FuelTypeRadioGroup,
+} from "@/components/FuelType";
+import { FUEL_TYPES, fuelTypeLabel } from "@shared/fuel";
+import {
   exportManagementPdf,
   exportManagementXlsx,
 } from "@/lib/managementExport";
@@ -31,10 +37,6 @@ type User = {
   fullName: string;
   role: "frentista" | "gerente" | "administrador";
   active: boolean;
-};
-const fuelNames: Record<string, string> = {
-  gasolina_comum: "Gasolina Comum",
-  diesel_s10: "Diesel S10",
 };
 const movementNames: Record<string, string> = {
   opening: "Estoque inicial",
@@ -75,12 +77,15 @@ export default function StockPage({ user }: { user: User }) {
   const pumps = trpc.settings.pumps.useQuery();
   const [filterTank, setFilterTank] = useState("");
   const [filterFuel, setFilterFuel] = useState("");
+  const [receiptTankId, setReceiptTankId] = useState("");
+  const [measurementTankId, setMeasurementTankId] = useState("");
+  const [writeoffTankId, setWriteoffTankId] = useState("");
   const [filterType, setFilterType] = useState("");
   const [filterFrom, setFilterFrom] = useState("");
   const [filterTo, setFilterTo] = useState("");
   const movements = trpc.inventory.movements.useQuery({
     tankId: filterTank ? Number(filterTank) : undefined,
-    fuelType: filterFuel || undefined,
+    fuelType: FUEL_TYPES.find(fuelType => fuelType === filterFuel),
     movementType: filterType
       ? (filterType as
           | "opening"
@@ -113,6 +118,8 @@ export default function StockPage({ user }: { user: User }) {
     ]);
   };
   const tankRows = tanks.data ?? [];
+  const selectedTankFuel = (tankId: string) =>
+    tankRows.find(tank => String(tank.id) === tankId)?.fuelType;
   const dashboardById = useMemo(
     () => new Map((dashboard.data?.tanks ?? []).map(item => [item.id, item])),
     [dashboard.data]
@@ -127,10 +134,17 @@ export default function StockPage({ user }: { user: User }) {
     event.preventDefault();
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
+    const fuelType = FUEL_TYPES.find(
+      option => option === String(form.get("fuelType") ?? "")
+    );
+    if (!fuelType) {
+      toast.error("Selecione um combustível válido para o tanque.");
+      return;
+    }
     const payload = {
       name: String(form.get("name") ?? "").trim(),
       code: String(form.get("code") ?? "").trim(),
-      fuelType: String(form.get("fuelType") ?? "").trim(),
+      fuelType,
       capacityTotalLiters: Number(form.get("capacityTotalLiters")),
       operationalCapacityLiters: Number(form.get("operationalCapacityLiters")),
       minimumStockLiters: Number(form.get("minimumStockLiters")),
@@ -214,6 +228,7 @@ export default function StockPage({ user }: { user: User }) {
       }
       receiptKey.current = freshIdempotencyKey();
       formElement.reset();
+      setReceiptTankId("");
       await refresh();
       toast.success(
         result.duplicate
@@ -237,6 +252,7 @@ export default function StockPage({ user }: { user: User }) {
         notes: String(form.get("notes") ?? "").trim() || undefined,
       });
       formElement.reset();
+      setMeasurementTankId("");
       await refresh();
       toast.success(
         `Medição registrada. Diferença física/teórica: ${liters(result.differenceLiters)}.`
@@ -260,6 +276,7 @@ export default function StockPage({ user }: { user: User }) {
       });
       writeoffKey.current = freshIdempotencyKey();
       formElement.reset();
+      setWriteoffTankId("");
       await refresh();
       toast.success(
         result.duplicate
@@ -278,7 +295,7 @@ export default function StockPage({ user }: { user: User }) {
     return {
       Data: new Date(row.occurredAt).toLocaleString("pt-BR"),
       Tanque: `${row.tankName} (${row.tankCode})`,
-      Combustível: fuelNames[row.fuelType] ?? row.fuelType,
+      Combustível: fuelTypeLabel(row.fuelType),
       Tipo: movementNames[row.movementType] ?? row.movementType,
       Quantidade: Number(row.quantityLiters),
       "Saldo após movimento": Number(row.balanceAfterLiters),
@@ -326,7 +343,7 @@ export default function StockPage({ user }: { user: User }) {
   const exportStockSnapshot = (format: "xlsx" | "pdf") => {
     const rows = (dashboard.data?.tanks ?? []).map(tank => ({
       Tanque: `${tank.name} (${tank.code})`,
-      Combustível: fuelNames[tank.fuelType] ?? tank.fuelType,
+      Combustível: fuelTypeLabel(tank.fuelType),
       "Estoque teórico (L)": Number(tank.stockLiters),
       "Capacidade operacional (L)": Number(tank.operationalCapacityLiters),
       "Capacidade total (L)": Number(tank.capacityTotalLiters),
@@ -506,21 +523,14 @@ export default function StockPage({ user }: { user: User }) {
               />
             </div>
             <div className="field">
-              <Label>Combustível</Label>
-              <Input
+              <Label>Combustível do tanque</Label>
+              <FuelTypeRadioGroup
                 name="fuelType"
-                required
-                minLength={2}
-                maxLength={80}
                 defaultValue="gasolina_comum"
-                list="fuel-type-options"
+                ariaLabel="Combustível do tanque"
               />
-              <datalist id="fuel-type-options">
-                <option value="gasolina_comum">Gasolina Comum</option>
-                <option value="diesel_s10">Diesel S10</option>
-              </datalist>
               <small>
-                Use gasolina_comum ou diesel_s10 para vincular aos bicos atuais.
+                O tanque só poderá receber bicos do mesmo combustível.
               </small>
             </div>
             <div className="field">
@@ -723,9 +733,7 @@ export default function StockPage({ user }: { user: User }) {
                         {tank.code} · {tank.active ? "ATIVO" : "INATIVO"}
                       </span>
                       <h3>{tank.name}</h3>
-                      <span className="tank-fuel">
-                        {fuelNames[tank.fuelType] ?? tank.fuelType}
-                      </span>
+                      <FuelTypeBadge fuelType={tank.fuelType} />
                     </div>
                     <span
                       className={`tank-health-badge health-${summary?.stockHealth ?? "atencao"}`}
@@ -901,7 +909,8 @@ export default function StockPage({ user }: { user: User }) {
                       <div>
                         <strong>{pump.number}</strong>
                         <small>
-                          {fuelNames[pump.fuelType] ?? pump.fuelType} · atual:{" "}
+                          <FuelTypeBadge fuelType={pump.fuelType} />
+                          {" · atual: "}
                           {assigned?.name ?? "sem tanque vinculado"}
                         </small>
                       </div>
@@ -927,11 +936,13 @@ export default function StockPage({ user }: { user: User }) {
                       >
                         <option value="">Selecionar tanque</option>
                         {tankRows
-                          .filter(tank => tank.active)
+                          .filter(
+                            tank =>
+                              tank.active && tank.fuelType === pump.fuelType
+                          )
                           .map(tank => (
                             <option key={tank.id} value={tank.id}>
-                              {tank.name} ·{" "}
-                              {fuelNames[tank.fuelType] ?? tank.fuelType}
+                              {tank.name} · {fuelTypeLabel(tank.fuelType)}
                             </option>
                           ))}
                       </select>
@@ -964,6 +975,7 @@ export default function StockPage({ user }: { user: User }) {
                 name="tankId"
                 required
                 defaultValue=""
+                onChange={event => setReceiptTankId(event.target.value)}
               >
                 <option value="" disabled>
                   Selecione
@@ -972,10 +984,13 @@ export default function StockPage({ user }: { user: User }) {
                   .filter(tank => tank.active)
                   .map(tank => (
                     <option value={tank.id} key={tank.id}>
-                      {tank.name} · {fuelNames[tank.fuelType] ?? tank.fuelType}
+                      {tank.name} · {fuelTypeLabel(tank.fuelType)}
                     </option>
                   ))}
               </select>
+              {selectedTankFuel(receiptTankId) && (
+                <FuelTypeBadge fuelType={selectedTankFuel(receiptTankId)!} />
+              )}
             </div>
             <div className="field">
               <Label>Fornecedor</Label>
@@ -1066,6 +1081,7 @@ export default function StockPage({ user }: { user: User }) {
                 name="tankId"
                 required
                 defaultValue=""
+                onChange={event => setMeasurementTankId(event.target.value)}
               >
                 <option value="" disabled>
                   Selecione
@@ -1074,10 +1090,15 @@ export default function StockPage({ user }: { user: User }) {
                   .filter(tank => tank.active)
                   .map(tank => (
                     <option value={tank.id} key={tank.id}>
-                      {tank.name}
+                      {tank.name} · {fuelTypeLabel(tank.fuelType)}
                     </option>
                   ))}
               </select>
+              {selectedTankFuel(measurementTankId) && (
+                <FuelTypeBadge
+                  fuelType={selectedTankFuel(measurementTankId)!}
+                />
+              )}
             </div>
             <div className="field">
               <Label>Volume físico (L)</Label>
@@ -1136,6 +1157,7 @@ export default function StockPage({ user }: { user: User }) {
                 name="tankId"
                 required
                 defaultValue=""
+                onChange={event => setWriteoffTankId(event.target.value)}
               >
                 <option value="" disabled>
                   Selecione
@@ -1144,10 +1166,13 @@ export default function StockPage({ user }: { user: User }) {
                   .filter(tank => tank.active)
                   .map(tank => (
                     <option value={tank.id} key={tank.id}>
-                      {tank.name}
+                      {tank.name} · {fuelTypeLabel(tank.fuelType)}
                     </option>
                   ))}
               </select>
+              {selectedTankFuel(writeoffTankId) && (
+                <FuelTypeBadge fuelType={selectedTankFuel(writeoffTankId)!} />
+              )}
             </div>
             <div className="field">
               <Label>Quantidade (L)</Label>
@@ -1237,21 +1262,12 @@ export default function StockPage({ user }: { user: User }) {
               ))}
             </select>
           </div>
-          <div className="field">
-            <Label>Combustível</Label>
-            <select
-              className="form-select"
-              value={filterFuel}
-              onChange={event => setFilterFuel(event.target.value)}
-            >
-              <option value="">Todos</option>
-              {[...new Set(tankRows.map(tank => tank.fuelType))].map(fuel => (
-                <option key={fuel} value={fuel}>
-                  {fuelNames[fuel] ?? fuel}
-                </option>
-              ))}
-            </select>
-          </div>
+          <FuelTypeFilter
+            id="stock-fuel-filter"
+            label="Combustível"
+            value={filterFuel}
+            onChange={setFilterFuel}
+          />
           <div className="field">
             <Label>Movimentação</Label>
             <select
@@ -1295,8 +1311,7 @@ export default function StockPage({ user }: { user: User }) {
                     <td>
                       {row.tankName}
                       <small>
-                        {fuelNames[row.fuelType] ?? row.fuelType} ·{" "}
-                        {row.tankCode}
+                        <FuelTypeBadge fuelType={row.fuelType} /> {row.tankCode}
                       </small>
                     </td>
                     <td>

@@ -84,31 +84,144 @@ export function calendarDaysInclusive(from: string, to: string): number {
   return Math.floor((end - start) / 86_400_000) + 1;
 }
 
+export type TankSalesRecord = {
+  closureId: number;
+  pumpId: number;
+  fuelType: string;
+  closureDate: string;
+  shift: string;
+  finalizedAt: Date | string;
+  liters: number;
+};
+
+export type TankAssignmentRecord = {
+  pumpId: number;
+  tankId: number;
+  effectiveAt: Date | string;
+};
+
+type ClosureSales = {
+  date: string;
+  shift: string;
+  finalizedAt: Date | string;
+  rows: TankSalesRecord[];
+};
+const REQUIRED_SHIFTS = ["manha", "tarde", "noite"] as const;
+
 export function summarizeTankSalesWindow(
-  sales: readonly { pumpId: number; closureDate: string; liters: number }[],
+  sales: readonly TankSalesRecord[],
   assignedPumpIds: readonly number[] | ReadonlySet<number>,
+  assignmentHistory: readonly TankAssignmentRecord[],
+  tankId: number,
+  fuelType: string,
   windowStart: string,
   today: string,
-  stockStartDate: string
+  stockStartDate: string,
+  minimumSampleDays = 3
 ) {
   const effectiveStart =
     stockStartDate > windowStart ? stockStartDate : windowStart;
-  const availableDays = calendarDaysInclusive(effectiveStart, today);
-  const pumpIds =
+  const calendarDays = calendarDaysInclusive(effectiveStart, today);
+  const currentlyAssignedPumpIds =
     assignedPumpIds instanceof Set ? assignedPumpIds : new Set(assignedPumpIds);
-  const relevantSales = sales.filter(
-    row =>
-      pumpIds.has(row.pumpId) &&
-      row.closureDate >= effectiveStart &&
-      row.closureDate <= today
-  );
-  const totalLiters = relevantSales.reduce((sum, row) => sum + row.liters, 0);
+  const candidatePumpIds = new Set(currentlyAssignedPumpIds);
+  const historyByPump = new Map<number, TankAssignmentRecord[]>();
+  for (const assignment of assignmentHistory) {
+    if (assignment.tankId === tankId && currentlyAssignedPumpIds.size > 0)
+      candidatePumpIds.add(assignment.pumpId);
+    const entries = historyByPump.get(assignment.pumpId) ?? [];
+    entries.push(assignment);
+    historyByPump.set(assignment.pumpId, entries);
+  }
+  for (const entries of historyByPump.values()) {
+    entries.sort(
+      (a, b) =>
+        new Date(a.effectiveAt).getTime() - new Date(b.effectiveAt).getTime()
+    );
+  }
+  const assignmentAt = (pumpId: number, at: Date | string) => {
+    const timestamp = new Date(at).getTime();
+    const entries = historyByPump.get(pumpId) ?? [];
+    let tankAtTime: number | null = null;
+    for (const entry of entries) {
+      if (new Date(entry.effectiveAt).getTime() > timestamp) break;
+      tankAtTime = entry.tankId;
+    }
+    return tankAtTime;
+  };
+  const closures = new Map<number, ClosureSales>();
+  for (const row of sales) {
+    if (row.closureDate < effectiveStart || row.closureDate > today) continue;
+    const closure = closures.get(row.closureId) ?? {
+      date: row.closureDate,
+      shift: row.shift,
+      finalizedAt: row.finalizedAt,
+      rows: [],
+    };
+    closure.rows.push(row);
+    closures.set(row.closureId, closure);
+  }
+  const byDate = new Map<string, ClosureSales[]>();
+  for (const closure of closures.values()) {
+    const day = byDate.get(closure.date) ?? [];
+    day.push(closure);
+    byDate.set(closure.date, day);
+  }
+  const relevantSales: TankSalesRecord[] = [];
+  let coveredDays = 0;
+  let totalLiters = 0;
+  for (const dayClosures of byDate.values()) {
+    const shiftCounts = new Map<string, number>();
+    for (const closure of dayClosures)
+      shiftCounts.set(closure.shift, (shiftCounts.get(closure.shift) ?? 0) + 1);
+    if (
+      dayClosures.length !== REQUIRED_SHIFTS.length ||
+      REQUIRED_SHIFTS.some(shift => shiftCounts.get(shift) !== 1)
+    )
+      continue;
+    let dayLiters = 0;
+    const dayRows: TankSalesRecord[] = [];
+    let fullyCovered = true;
+    for (const closure of dayClosures) {
+      const assignedPumps = [...candidatePumpIds].filter(
+        pumpId => assignmentAt(pumpId, closure.finalizedAt) === tankId
+      );
+      if (!assignedPumps.length) {
+        fullyCovered = false;
+        break;
+      }
+      for (const pumpId of assignedPumps) {
+        const row = closure.rows.find(item => item.pumpId === pumpId);
+        if (!row || row.fuelType !== fuelType) {
+          fullyCovered = false;
+          break;
+        }
+        const liters = Number(row.liters);
+        if (!Number.isFinite(liters) || liters < 0) {
+          fullyCovered = false;
+          break;
+        }
+        dayRows.push(row);
+        dayLiters += liters;
+      }
+      if (!fullyCovered) break;
+    }
+    if (fullyCovered) {
+      coveredDays += 1;
+      totalLiters += dayLiters;
+      relevantSales.push(...dayRows);
+    }
+  }
+  const averageDailyLiters =
+    coveredDays >= minimumSampleDays ? totalLiters / coveredDays : 0;
   return {
     effectiveStart,
-    availableDays,
+    availableDays: coveredDays,
+    calendarDays,
+    coveredDays,
     relevantSales,
     totalLiters,
-    averageDailyLiters: availableDays > 0 ? totalLiters / availableDays : 0,
+    averageDailyLiters,
     records: relevantSales.length,
   };
 }

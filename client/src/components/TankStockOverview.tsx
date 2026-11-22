@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { ArrowRight, CircleAlert, Fuel, Gauge } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { FuelTypeBadge } from "@/components/FuelType";
 
 const liters = (value: number) =>
   `${Number(value ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 1 })} L`;
@@ -16,14 +17,6 @@ const healthLabel: Record<string, string> = {
   atencao: "Atenção",
   critico: "Estoque crítico",
 };
-const fuelLabel = (value: string) =>
-  (
-    ({ gasolina_comum: "Gasolina comum", diesel_s10: "Diesel S10" }) as Record<
-      string,
-      string
-    >
-  )[value] ?? value;
-
 export default function TankStockOverview() {
   const [windowDays, setWindowDays] = useState<7 | 15 | 30>(7);
   const query = trpc.inventory.dashboard.useQuery(
@@ -113,7 +106,7 @@ export default function TankStockOverview() {
                 <div>
                   <span className="tank-code">{tank.code}</span>
                   <h3>{tank.name}</h3>
-                  <span className="tank-fuel">{fuelLabel(tank.fuelType)}</span>
+                  <FuelTypeBadge fuelType={tank.fuelType} />
                 </div>
                 <span
                   className={`tank-health-badge health-${tank.stockHealth}`}

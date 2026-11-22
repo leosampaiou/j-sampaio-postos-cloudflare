@@ -1258,3 +1258,22 @@ Nenhum deploy, escrita remota, DDL, acesso ao MySQL antigo ou aos objetos antigo
 - Preservar dados, regras de negócio, módulos, recursos e exportações não citados; evitar dependências desnecessárias.
 - Validar tipos, suíte de testes e build; corrigir falhas encontradas, buscar e integrar `origin/main` preservando ambos os lados, repetir as verificações afetadas e fazer commit e push normal para `origin main`, sem force-push.
 - Não realizar deploy ou publicação.
+
+
+## Autonomia real e navegação de Estoque e Tanques — 22/11/2026
+
+### [x] Autonomia baseada nos fechamentos reais das 13h e 22h
+- Para calcular consumo/autonomia, mapear apenas os registros de turno `manha` e `noite` para os fechamentos operacionais das 13h e 22h, respectivamente. Não exigir um fechamento `tarde` para esta regra e não remover ou alterar o turno `tarde` em formulários, relatórios, dashboard ou outras regras gerais.
+- Um dia só será amostra completa se existir exatamente um fechamento válido de manhã e exatamente um de noite, ambos finalizados, com cobertura válida dos bicos atualmente vinculados ao tanque na data/hora de cada fechamento e do combustível correspondente. Dia sem qualquer fechamento exigido, fechamento duplicado, venda/bico ausente ou dado inválido será excluído da média; nunca preencher como venda zero nem inferir dados.
+- Manter o requisito conservador de pelo menos três dias completos antes de calcular média diária ou autonomia. Exibir ausência/baixa cobertura explicitamente; média de vendas zero não produz previsão artificial.
+- Comunicar no aviso de cobertura que os dias considerados exigem fechamentos das 13h e 22h; indicar quantos dias completos válidos foram observados. Não modificar dados persistidos, schema, banco ou migrações.
+
+### [x] Área Estoque e Tanques mais clara e responsiva
+- Reorganizar a página em quatro áreas navegáveis e nomeadas: “Visão geral”, “Operações”, “Tanques e bicos” e “Histórico”, com Visão geral aberta inicialmente e navegação utilizável por mouse, teclado e celular.
+- “Visão geral” deve priorizar indicadores reais, estado de consulta/erro e resumo de estoque/autonomia/alertas por tanque, sem inventar dados; os detalhes administrativos continuam na área “Tanques e bicos”.
+- “Operações” agrupa os fluxos já existentes de entrada, medição física e baixa extraordinária; “Tanques e bicos” mantém cadastro/edição e vínculo explícito dos bicos; “Histórico” mantém movimentos e medições com seus filtros e exportações PDF/Excel.
+- Preservar permissões por papel, validações, auditoria/idempotência, comprovantes, filtros, exportações, consulta de dados, mensagens de erro/retry, diferença entre estoque teórico e medição física e todos os fluxos existentes; não remover recursos para simplificar visualmente.
+- Aumentar a legibilidade da página e a clareza de hierarquia visual, com campos e ações fáceis de alcançar em celular e sem rolagem confusa entre tarefas; manter a paleta da marca e evitar rolagem horizontal indevida.
+- Validar com `pnpm check`, `pnpm test`, `pnpm build`, Prettier e revisão do diff. Esta entrega não altera banco/schema, não publica/deploya e não cria commit/push.
+
+Evidências em 22/11/2026: a amostra exige um fechamento `manha` (13h) e um `noite` (22h) por dia, ignora vendas `tarde` apenas nesta regra e mantém mínimo de três dias completos; regressões cobrem ausência, duplicidade, bico transferido e vendas da tarde. A área apresenta as quatro seções previstas, com operações, permissões, consultas, filtros, comprovantes e exportações preservados no código. `pnpm check`, `pnpm test` (67 testes/15 arquivos), `pnpm build`, Prettier e `git diff --check` passaram; o build mantém aviso de chunk acima de 500 kB. Nenhuma alteração de banco/schema, deploy, commit ou push foi feita.

@@ -9,7 +9,7 @@ import {
   type TankSalesRecord,
 } from "./inventory";
 
-const shifts = ["manha", "tarde", "noite"] as const;
+const shifts = ["manha", "noite"] as const;
 const assignment = (pumpId: number, tankId: number, effectiveAt: string) => ({
   pumpId,
   tankId,
@@ -19,7 +19,7 @@ const assignment = (pumpId: number, tankId: number, effectiveAt: string) => ({
 function completeDay(
   date: string,
   firstClosureId: number,
-  litersByShift: readonly [number, number, number],
+  litersByShift: readonly [number, number],
   options: {
     pumpId?: number;
     fuelType?: string;
@@ -31,8 +31,9 @@ function completeDay(
   const fuelType = options.fuelType ?? "gasolina_comum";
   return shifts.flatMap((shift, index) => {
     const finalizedAt = new Date(
-      `${date}T${["06:00:00", "14:00:00", "22:00:00"][index]}.000Z`
+      `${date}T${shift === "manha" ? "16:00:00" : "01:00:00"}.000Z`
     );
+    if (shift === "noite") finalizedAt.setUTCDate(finalizedAt.getUTCDate() + 1);
     const rows: TankSalesRecord[] = [
       {
         closureId: firstClosureId + index,
@@ -76,9 +77,9 @@ describe("inventory estimates", () => {
 
   it("averages the correct fuel and currently assigned pump only on complete days", () => {
     const sales = [
-      ...completeDay("2026-11-19", 1, [30, 30, 30], { otherPumpLiters: 900 }),
-      ...completeDay("2026-11-20", 4, [40, 40, 40], { otherPumpLiters: 900 }),
-      ...completeDay("2026-11-21", 7, [30, 30, 30], {
+      ...completeDay("2026-11-19", 1, [30, 30], { otherPumpLiters: 900 }),
+      ...completeDay("2026-11-20", 4, [40, 40], { otherPumpLiters: 900 }),
+      ...completeDay("2026-11-21", 7, [30, 30], {
         otherPumpLiters: 700,
         otherPumpFuelType: "diesel_s10",
       }),
@@ -95,18 +96,18 @@ describe("inventory estimates", () => {
     );
 
     expect(summary.availableDays).toBe(3);
-    expect(summary.records).toBe(9);
-    expect(summary.totalLiters).toBe(300);
-    expect(summary.averageDailyLiters).toBe(100);
-    expect(autonomyInDays(900, summary.averageDailyLiters)).toBe(9);
+    expect(summary.records).toBe(6);
+    expect(summary.totalLiters).toBe(200);
+    expect(summary.averageDailyLiters).toBeCloseTo(200 / 3);
+    expect(autonomyInDays(900, summary.averageDailyLiters)).toBeCloseTo(13.5);
   });
 
   it("excludes an incomplete date instead of treating missing shifts as zero sales", () => {
-    const incomplete = completeDay("2026-11-19", 1, [100, 100, 100]).filter(
+    const incomplete = completeDay("2026-11-19", 1, [100, 100]).filter(
       row => row.shift !== "noite"
     );
     const summary = summarizeTankSalesWindow(
-      [...incomplete, ...completeDay("2026-11-20", 4, [30, 30, 30])],
+      [...incomplete, ...completeDay("2026-11-20", 4, [30, 30])],
       [1],
       [assignment(1, 10, "2026-11-01T00:00:00.000Z")],
       10,
@@ -118,12 +119,12 @@ describe("inventory estimates", () => {
     );
 
     expect(summary.coveredDays).toBe(1);
-    expect(summary.totalLiters).toBe(90);
-    expect(summary.averageDailyLiters).toBe(90);
+    expect(summary.totalLiters).toBe(60);
+    expect(summary.averageDailyLiters).toBe(60);
   });
 
   it("excludes a date with a duplicated shift", () => {
-    const duplicatedShift = completeDay("2026-11-19", 1, [30, 30, 30]).map(
+    const duplicatedShift = completeDay("2026-11-19", 1, [30, 30]).map(
       (row, index) => (index === 1 ? { ...row, shift: "manha" } : row)
     );
     const summary = summarizeTankSalesWindow(
@@ -142,6 +143,32 @@ describe("inventory estimates", () => {
     expect(summary.averageDailyLiters).toBe(0);
   });
 
+  it("ignores afternoon sales instead of counting them in the autonomy sample", () => {
+    const twoClosures = completeDay("2026-11-19", 1, [30, 40]);
+    const afternoonClosure = {
+      ...twoClosures[0],
+      closureId: 3,
+      shift: "tarde",
+      finalizedAt: new Date("2026-11-19T19:00:00.000Z"),
+      liters: 900,
+    };
+    const summary = summarizeTankSalesWindow(
+      [...twoClosures, afternoonClosure],
+      [1],
+      [assignment(1, 10, "2026-11-01T00:00:00.000Z")],
+      10,
+      "gasolina_comum",
+      "2026-11-19",
+      "2026-11-19",
+      "2026-11-19",
+      1
+    );
+
+    expect(summary.coveredDays).toBe(1);
+    expect(summary.records).toBe(2);
+    expect(summary.totalLiters).toBe(70);
+  });
+
   it("does not reassign historical sales when a pump moves to another tank", () => {
     const history = [
       assignment(1, 10, "2026-11-01T00:00:00.000Z"),
@@ -149,9 +176,9 @@ describe("inventory estimates", () => {
       assignment(1, 10, "2026-11-21T23:00:00.000Z"),
     ];
     const sales = [
-      ...completeDay("2026-11-19", 1, [20, 20, 20]),
-      ...completeDay("2026-11-20", 4, [20, 500, 500]),
-      ...completeDay("2026-11-21", 7, [500, 500, 500]),
+      ...completeDay("2026-11-19", 1, [20, 20]),
+      ...completeDay("2026-11-20", 4, [20, 500]),
+      ...completeDay("2026-11-21", 7, [500, 500]),
     ];
     const summary = summarizeTankSalesWindow(
       sales,
@@ -166,15 +193,15 @@ describe("inventory estimates", () => {
     );
 
     expect(summary.coveredDays).toBe(1);
-    expect(summary.totalLiters).toBe(60);
-    expect(summary.averageDailyLiters).toBe(60);
+    expect(summary.totalLiters).toBe(40);
+    expect(summary.averageDailyLiters).toBe(40);
   });
 
   it("counts recorded zero-sales days but does not divide by zero", () => {
     const sales = [
-      ...completeDay("2026-11-19", 1, [0, 0, 0]),
-      ...completeDay("2026-11-20", 4, [0, 0, 0]),
-      ...completeDay("2026-11-21", 7, [0, 0, 0]),
+      ...completeDay("2026-11-19", 1, [0, 0]),
+      ...completeDay("2026-11-20", 4, [0, 0]),
+      ...completeDay("2026-11-21", 7, [0, 0]),
     ];
     const summary = summarizeTankSalesWindow(
       sales,
@@ -194,24 +221,27 @@ describe("inventory estimates", () => {
 
   it("withholds an estimate when there are fewer than three covered sample days", () => {
     const summary = summarizeTankSalesWindow(
-      completeDay("2026-11-21", 1, [50, 50, 50]),
+      [
+        ...completeDay("2026-11-20", 1, [50, 50]),
+        ...completeDay("2026-11-21", 3, [50, 50]),
+      ],
       [1],
       [assignment(1, 10, "2026-11-01T00:00:00.000Z")],
       10,
       "gasolina_comum",
       "2026-11-15",
       "2026-11-21",
-      "2026-11-19"
+      "2026-11-20"
     );
 
-    expect(summary.coveredDays).toBe(1);
+    expect(summary.coveredDays).toBe(2);
     expect(summary.averageDailyLiters).toBe(0);
     expect(autonomyInDays(8500, summary.averageDailyLiters)).toBeNull();
   });
 
   it("does not invent an average before the tank stock start date", () => {
     const summary = summarizeTankSalesWindow(
-      completeDay("2026-11-21", 1, [100, 100, 100]),
+      completeDay("2026-11-21", 1, [100, 100]),
       [1],
       [assignment(1, 10, "2026-11-01T00:00:00.000Z")],
       10,
@@ -227,7 +257,7 @@ describe("inventory estimates", () => {
 
   it("does not treat the wrong fuel as tank sales", () => {
     const summary = summarizeTankSalesWindow(
-      completeDay("2026-11-19", 1, [100, 100, 100], {
+      completeDay("2026-11-19", 1, [100, 100], {
         fuelType: "diesel_s10",
       }),
       [1],

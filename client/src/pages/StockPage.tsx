@@ -3,10 +3,12 @@ import {
   ArrowDown,
   ArrowUp,
   CircleAlert,
+  ClipboardList,
   Download,
   FileSpreadsheet,
   Fuel,
   Gauge,
+  History,
   Plus,
   RefreshCw,
   Save,
@@ -72,6 +74,9 @@ const movementQuantity = (value: number | string) =>
 export default function StockPage({ user }: { user: User }) {
   const utils = trpc.useUtils();
   const canManageTanks = user.role === "administrador";
+  const [activeArea, setActiveArea] = useState<
+    "overview" | "operations" | "tanks" | "history"
+  >("overview");
   const tanks = trpc.inventory.listTanks.useQuery();
   const [windowDays, setWindowDays] = useState<7 | 15 | 30>(7);
   const dashboard = trpc.inventory.dashboard.useQuery({ windowDays });
@@ -422,8 +427,8 @@ export default function StockPage({ user }: { user: User }) {
   };
 
   return (
-    <>
-      <div className="page-heading">
+    <div className="stock-page">
+      <div className="page-heading stock-page-heading">
         <div>
           <span className="eyebrow">CONTROLE OPERACIONAL</span>
           <h1>Estoque e Tanques</h1>
@@ -453,6 +458,40 @@ export default function StockPage({ user }: { user: User }) {
           </Button>
         </div>
       </div>
+      <nav className="stock-area-nav" aria-label="Áreas de Estoque e Tanques">
+        <button
+          type="button"
+          aria-current={activeArea === "overview" ? "page" : undefined}
+          aria-controls="stock-overview"
+          onClick={() => setActiveArea("overview")}
+        >
+          <Gauge size={17} /> <span>Visão geral</span>
+        </button>
+        <button
+          type="button"
+          aria-current={activeArea === "operations" ? "page" : undefined}
+          aria-controls="stock-operations"
+          onClick={() => setActiveArea("operations")}
+        >
+          <ClipboardList size={17} /> <span>Operações</span>
+        </button>
+        <button
+          type="button"
+          aria-current={activeArea === "tanks" ? "page" : undefined}
+          aria-controls="stock-tanks"
+          onClick={() => setActiveArea("tanks")}
+        >
+          <Warehouse size={17} /> <span>Tanques e bicos</span>
+        </button>
+        <button
+          type="button"
+          aria-current={activeArea === "history" ? "page" : undefined}
+          aria-controls="stock-history"
+          onClick={() => setActiveArea("history")}
+        >
+          <History size={17} /> <span>Histórico</span>
+        </button>
+      </nav>
       {(tanks.isError || dashboard.isError || pumps.isError) && (
         <QueryError
           message="Uma ou mais consultas de estoque falharam; os registros não estão sendo tratados como vazios."
@@ -465,1009 +504,1223 @@ export default function StockPage({ user }: { user: User }) {
           }
         />
       )}
-      <div className="stock-summary-grid">
-        <div className="panel stock-summary-card">
-          <span>Tanques ativos</span>
-          <strong>{tanks.isError ? "—" : activeCount}</strong>
-          <small>Tanques inativos continuam no histórico</small>
+      <section
+        id="stock-overview"
+        className="stock-view"
+        aria-labelledby="stock-overview-title"
+        hidden={activeArea !== "overview"}
+      >
+        <div className="stock-summary-grid">
+          <div className="panel stock-summary-card">
+            <span>Tanques ativos</span>
+            <strong>
+              {tanks.isLoading || tanks.isError ? "—" : activeCount}
+            </strong>
+            <small>Tanques inativos continuam no histórico</small>
+          </div>
+          <div className="panel stock-summary-card">
+            <span>Estoque teórico total</span>
+            <strong>
+              {dashboard.isLoading || dashboard.isError
+                ? "—"
+                : liters(totalLiters)}
+            </strong>
+            <small>Somente tanques ativos com estoque cadastrado</small>
+          </div>
+          <div className="panel stock-summary-card">
+            <span>Alertas ativos</span>
+            <strong>
+              {dashboard.isLoading || dashboard.isError
+                ? "—"
+                : (dashboard.data?.alerts.length ?? 0)}
+            </strong>
+            <small>Derivados dos limites de cada tanque</small>
+          </div>
         </div>
-        <div className="panel stock-summary-card">
-          <span>Estoque teórico total</span>
-          <strong>
-            {dashboard.isLoading || dashboard.isError
-              ? "—"
-              : liters(totalLiters)}
-          </strong>
-          <small>Somente tanques ativos com estoque cadastrado</small>
-        </div>
-        <div className="panel stock-summary-card">
-          <span>Alertas ativos</span>
-          <strong>
-            {dashboard.isLoading || dashboard.isError
-              ? "—"
-              : (dashboard.data?.alerts.length ?? 0)}
-          </strong>
-          <small>Derivados dos limites de cada tanque</small>
-        </div>
-      </div>
 
-      {canManageTanks && (
-        <section className="panel stock-section">
+        <section className="panel stock-section stock-overview-panel">
           <div className="section-title">
             <div>
-              <h2>Cadastrar tanque</h2>
+              <span className="eyebrow">POSIÇÃO ATUAL</span>
+              <h2 id="stock-overview-title">Estoque por tanque</h2>
               <small>
-                O estoque inicial será lançado como movimento de abertura e
-                auditado.
+                Saldo teórico e autonomia calculados somente com dados
+                persistidos.
               </small>
             </div>
-          </div>
-          <form className="stock-form-grid" onSubmit={submitTank}>
-            <div className="field">
-              <Label>Nome / identificação</Label>
-              <Input
-                name="name"
-                required
-                minLength={2}
-                maxLength={100}
-                placeholder="Ex.: Tanque subterrâneo 01"
-              />
-            </div>
-            <div className="field">
-              <Label>Código único</Label>
-              <Input
-                name="code"
-                required
-                pattern="[A-Za-z0-9._-]+"
-                maxLength={40}
-                placeholder="TQ-01"
-              />
-            </div>
-            <div className="field">
-              <Label>Combustível do tanque</Label>
-              <FuelTypeRadioGroup
-                name="fuelType"
-                defaultValue="gasolina_comum"
-                ariaLabel="Combustível do tanque"
-              />
-              <small>
-                O tanque só poderá receber bicos do mesmo combustível.
-              </small>
-            </div>
-            <div className="field">
-              <Label>Capacidade total (L)</Label>
-              <Input
-                name="capacityTotalLiters"
-                type="number"
-                inputMode="decimal"
-                min="0.001"
-                step="0.001"
-                required
-              />
-            </div>
-            <div className="field">
-              <Label>Capacidade operacional (L)</Label>
-              <Input
-                name="operationalCapacityLiters"
-                type="number"
-                inputMode="decimal"
-                min="0.001"
-                step="0.001"
-                required
-              />
-            </div>
-            <div className="field">
-              <Label>Estoque mínimo (L)</Label>
-              <Input
-                name="minimumStockLiters"
-                type="number"
-                inputMode="decimal"
-                min="0"
-                step="0.001"
-                defaultValue="0"
-                required
-              />
-            </div>
-            <div className="field">
-              <Label>Estoque inicial (L)</Label>
-              <Input
-                name="initialStockLiters"
-                type="number"
-                inputMode="decimal"
-                min="0"
-                step="0.001"
-                defaultValue="0"
-                required
-              />
-            </div>
-            <div className="field">
-              <Label>Data inicial do estoque</Label>
-              <Input
-                name="stockStartDate"
-                type="date"
-                defaultValue={today()}
-                required
-              />
-            </div>
-            <div className="field">
-              <Label>Prazo de entrega (dias)</Label>
-              <Input
-                name="replenishmentLeadDays"
-                type="number"
-                min="0"
-                max="90"
-                defaultValue="0"
-                required
-              />
-            </div>
-            <div className="field">
-              <Label>Reserva de segurança (L)</Label>
-              <Input
-                name="safetyReserveLiters"
-                type="number"
-                inputMode="decimal"
-                min="0"
-                step="0.001"
-                defaultValue="0"
-                required
-              />
-            </div>
-            <div className="field">
-              <Label>Faixa próximo do mínimo (%)</Label>
-              <Input
-                name="nearMinimumPercent"
-                type="number"
-                min="0"
-                max="100"
-                defaultValue="15"
-                required
-              />
-            </div>
-            <div className="field">
-              <Label>Autonomia em atenção (dias)</Label>
-              <Input
-                name="autonomyWarningDays"
-                type="number"
-                min="1"
-                max="30"
-                defaultValue="3"
-                required
-              />
-            </div>
-            <div className="field">
-              <Label>Autonomia crítica (dias)</Label>
-              <Input
-                name="autonomyCriticalDays"
-                type="number"
-                min="1"
-                max="30"
-                defaultValue="2"
-                required
-              />
-            </div>
-            <div className="field">
-              <Label>Alerta divergência física (%)</Label>
-              <Input
-                name="discrepancyAlertPercent"
-                type="number"
-                min="0"
-                max="100"
-                step="0.001"
-                defaultValue="2"
-                required
-              />
-            </div>
-            <div className="field">
-              <Label>Sem atualização recente (dias)</Label>
-              <Input
-                name="staleAfterDays"
-                type="number"
-                min="1"
-                max="365"
-                defaultValue="7"
-                required
-              />
-            </div>
-            <div className="stock-form-actions">
-              <Button
-                className="primary-button"
-                disabled={createTank.isPending}
-              >
-                <Plus size={16} />
-                {createTank.isPending ? "Cadastrando…" : "Cadastrar tanque"}
-              </Button>
-            </div>
-          </form>
-        </section>
-      )}
-
-      <section className="stock-section">
-        <div className="section-title">
-          <div>
-            <h2>Tanques e origem dos bicos</h2>
-            <small>
-              Os valores e alertas são calculados a partir do histórico
-              persistido, sem amostras fictícias.
-            </small>
-          </div>
-          <div className="heading-actions">
-            <Button
-              variant="outline"
-              onClick={() => exportStockSnapshot("pdf")}
-            >
-              <Download size={15} /> Posição PDF
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => exportStockSnapshot("xlsx")}
-            >
-              <FileSpreadsheet size={15} /> Posição Excel
+            <Button variant="outline" onClick={() => setActiveArea("tanks")}>
+              <Warehouse size={15} /> Tanques e bicos
             </Button>
           </div>
-        </div>
-        {tanks.isError ? (
-          <QueryError retry={() => tanks.refetch()} />
-        ) : tanks.isLoading ? (
-          <div className="panel table-loading">Carregando tanques…</div>
-        ) : !tankRows.length ? (
-          <div className="panel tank-empty">
-            <Warehouse size={22} />
-            <strong>Nenhum tanque cadastrado</strong>
-            <span>
-              {canManageTanks
-                ? "Cadastre o estoque real para iniciar o acompanhamento."
-                : "Solicite ao administrador o cadastro e a configuração dos tanques."}
-            </span>
-          </div>
-        ) : (
-          <div className="tank-card-grid stock-page-tank-grid">
-            {tankRows.map(tank => {
-              const summary = dashboardById.get(tank.id);
-              return (
-                <article
-                  className={`panel tank-card health-${summary?.stockHealth ?? "atencao"}`}
-                  key={tank.id}
+          {tanks.isLoading ? (
+            <div className="table-loading">Carregando tanques…</div>
+          ) : tanks.isError ? (
+            <div className="tank-empty">
+              <CircleAlert size={21} />
+              <strong>Resumo indisponível</strong>
+              <span>Confira a mensagem de erro acima e tente atualizar.</span>
+            </div>
+          ) : activeCount === 0 ? (
+            <div className="tank-empty">
+              <Fuel size={21} />
+              <strong>
+                {tankRows.length
+                  ? "Nenhum tanque ativo"
+                  : "Nenhum tanque cadastrado"}
+              </strong>
+              <span>
+                {canManageTanks
+                  ? "Acesse Tanques e bicos para cadastrar ou reativar o estoque real."
+                  : "Solicite ao administrador o cadastro e a ativação dos tanques."}
+              </span>
+              {canManageTanks && (
+                <Button
+                  variant="outline"
+                  onClick={() => setActiveArea("tanks")}
                 >
-                  <div className="tank-card-top">
-                    <div>
-                      <span className="tank-code">
-                        {tank.code} · {tank.active ? "ATIVO" : "INATIVO"}
-                      </span>
-                      <h3>{tank.name}</h3>
-                      <FuelTypeBadge fuelType={tank.fuelType} />
-                    </div>
-                    <span
-                      className={`tank-health-badge health-${summary?.stockHealth ?? "atencao"}`}
+                  Abrir Tanques e bicos
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="stock-overview-grid">
+              {tankRows
+                .filter(tank => tank.active)
+                .map(tank => {
+                  const summary = dashboardById.get(tank.id);
+                  const health = summary?.stockHealth ?? "indisponivel";
+                  const healthLabel = summary
+                    ? summary.stockHealth === "confortavel"
+                      ? "Confortável"
+                      : summary.stockHealth === "critico"
+                        ? "Crítico"
+                        : "Atenção"
+                    : dashboard.isError
+                      ? "Indisponível"
+                      : "Sem resumo";
+                  return (
+                    <article
+                      className={`stock-overview-tank health-${health}`}
+                      key={tank.id}
                     >
-                      {summary
-                        ? summary.stockLiters <= Number(tank.minimumStockLiters)
-                          ? "Abaixo do mínimo"
-                          : summary.stockHealth
-                        : "Sem resumo"}
-                    </span>
-                  </div>
-                  {summary ? (
-                    <>
-                      <div className="tank-primary-stock">
-                        <strong>{liters(summary.stockLiters)}</strong>
-                        <span>
-                          de {liters(tank.operationalCapacityLiters)}{" "}
-                          operacionais · {liters(tank.capacityTotalLiters)}{" "}
-                          totais
+                      <div className="stock-overview-tank-heading">
+                        <div>
+                          <span className="tank-code">{tank.code}</span>
+                          <h3>{tank.name}</h3>
+                          <FuelTypeBadge fuelType={tank.fuelType} />
+                        </div>
+                        <span className={`tank-health-badge health-${health}`}>
+                          {healthLabel}
                         </span>
                       </div>
-                      <div className="tank-progress-track">
+                      <div className="stock-overview-volume">
+                        <strong>
+                          {summary ? liters(summary.stockLiters) : "—"}
+                        </strong>
+                        <span>
+                          de {liters(tank.operationalCapacityLiters)}{" "}
+                          operacionais
+                        </span>
+                      </div>
+                      <div
+                        className="tank-progress-track"
+                        role="progressbar"
+                        aria-label={`Ocupação do tanque ${tank.name}`}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={
+                          summary
+                            ? Math.round(summary.occupiedPercent)
+                            : undefined
+                        }
+                        aria-valuetext={
+                          summary
+                            ? `${summary.occupiedPercent.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% ocupado`
+                            : dashboard.isError
+                              ? "Indisponível"
+                              : "Aguardando dados"
+                        }
+                      >
                         <span
-                          className={`tank-progress-value health-${summary.stockHealth}`}
+                          className={`tank-progress-value health-${health}`}
                           style={{
-                            width: `${Math.min(100, summary.occupiedPercent)}%`,
+                            width: `${summary ? Math.min(100, summary.occupiedPercent) : 0}%`,
                           }}
                         />
                       </div>
-                      <div className="tank-progress-label">
+                      <div className="stock-overview-metrics">
                         <span>
-                          {summary.occupiedPercent.toLocaleString("pt-BR", {
-                            maximumFractionDigits: 1,
-                          })}
-                          % ocupado
+                          Autonomia
+                          <strong>
+                            {summary
+                              ? summary.autonomyDays === null
+                                ? "Sem previsão"
+                                : `${summary.autonomyDays.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} dias`
+                              : dashboard.isError
+                                ? "Indisponível"
+                                : "Aguardando dados"}
+                          </strong>
                         </span>
-                        <span>mínimo {liters(tank.minimumStockLiters)}</span>
+                        <span>
+                          Alertas
+                          <strong>
+                            {summary ? summary.alerts.length : "—"}
+                          </strong>
+                        </span>
                       </div>
-                      <div className="tank-key-metrics">
-                        <div>
-                          <span>Autonomia</span>
-                          <strong>
-                            {summary.autonomyDays === null
-                              ? "Sem previsão"
-                              : `${summary.autonomyDays.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} dias`}
-                          </strong>
-                        </div>
-                        <div>
-                          <span>
-                            Média diária (
-                            {summary.averageWindowDays ?? windowDays} dias)
-                          </span>
-                          <strong>
-                            {summary.averageDailyLiters > 0
-                              ? `${liters(summary.averageDailyLiters)}/dia`
-                              : "Sem histórico"}
-                          </strong>
-                        </div>
-                        <div>
-                          <span>Previsão de esgotamento</span>
-                          <strong>
-                            {summary.expectedEmptyDate ?? "Sem previsão"}
-                          </strong>
-                        </div>
-                        <div>
-                          <span>Reposição sugerida</span>
-                          <strong>
-                            {summary.suggestedReplenishmentLiters > 0
-                              ? liters(summary.suggestedReplenishmentLiters)
-                              : "Sem sugestão"}
-                          </strong>
-                        </div>
-                      </div>
-                      {summary.dataQuality === "baixa" && (
+                      {summary?.dataQuality === "baixa" && (
                         <TankSampleCoverageNotice
                           availableDays={summary.averageSampleDays}
                           windowDays={windowDays}
                           sampleStartDate={summary.averageSampleStartDate}
                         />
                       )}
-                      {summary.latestMeasurement && (
-                        <p className="tank-measurement-note">
-                          Última medição física{" "}
-                          {liters(summary.latestMeasurement.physicalLiters)};
-                          teórico preservado{" "}
-                          {liters(summary.latestMeasurement.theoreticalLiters)}.
-                        </p>
-                      )}
-                      {summary.alerts.map(alert => (
-                        <p
-                          className={`stock-alert-line ${alert.severity}`}
-                          key={alert.code}
-                        >
-                          <CircleAlert size={14} />
-                          {alert.message}
-                        </p>
-                      ))}
-                    </>
-                  ) : (
-                    <p className="tank-data-quality">
-                      Este tanque está inativo e não entra na projeção
-                      operacional.
-                    </p>
-                  )}
-                  {canManageTanks && (
-                    <div className="tank-admin-actions">
-                      <Button
-                        variant="outline"
-                        disabled={updateTank.isPending}
-                        onClick={async () => {
-                          try {
-                            await updateTank.mutateAsync({
-                              id: tank.id,
-                              name: tank.name,
-                              capacityTotalLiters: Number(
-                                tank.capacityTotalLiters
-                              ),
-                              operationalCapacityLiters: Number(
-                                tank.operationalCapacityLiters
-                              ),
-                              minimumStockLiters: Number(
-                                tank.minimumStockLiters
-                              ),
-                              replenishmentLeadDays: tank.replenishmentLeadDays,
-                              safetyReserveLiters: Number(
-                                tank.safetyReserveLiters
-                              ),
-                              nearMinimumPercent: tank.nearMinimumPercent,
-                              autonomyWarningDays: tank.autonomyWarningDays,
-                              autonomyCriticalDays: tank.autonomyCriticalDays,
-                              discrepancyAlertPercent: Number(
-                                tank.discrepancyAlertPercent
-                              ),
-                              staleAfterDays: tank.staleAfterDays,
-                              active: !tank.active,
-                            });
-                            await refresh();
-                            toast.success(
-                              tank.active
-                                ? "Tanque inativado."
-                                : "Tanque reativado."
-                            );
-                          } catch (error: any) {
-                            toast.error(error.message);
-                          }
-                        }}
-                      >
-                        {tank.active ? "Inativar" : "Reativar"}
-                      </Button>
-                    </div>
-                  )}
-                </article>
-              );
-            })}
+                    </article>
+                  );
+                })}
+            </div>
+          )}
+        </section>
+        <section className="panel stock-note">
+          <CircleAlert size={17} />
+          <p>
+            <strong>Planejamento de reposição não gera pedidos.</strong> A
+            quantidade sugerida considera consumo médio real, estoque mínimo,
+            prazo e reserva, limitada à capacidade operacional. A decisão final
+            é do gerente ou administrador.
+          </p>
+        </section>
+      </section>
+
+      <section
+        id="stock-tanks"
+        className="stock-view"
+        aria-labelledby="stock-tanks-title"
+        hidden={activeArea !== "tanks"}
+      >
+        <header className="stock-view-heading">
+          <div>
+            <h2 id="stock-tanks-title">Tanques e bicos</h2>
+            <p>
+              Cadastro, capacidade, alertas e origem explícita de cada bico.
+            </p>
           </div>
-        )}
+        </header>
         {canManageTanks && (
-          <div className="panel assignment-panel">
-            <div className="section-title">
+          <details className="panel stock-section stock-create-details">
+            <summary className="stock-create-summary">
               <div>
-                <h2>Vincular bicos a tanques</h2>
+                <h2>Cadastrar tanque</h2>
                 <small>
-                  O tanque precisa ter o mesmo combustível do bico. Uma origem
-                  explícita é obrigatória para registrar saídas.
+                  Configuração administrativa. O estoque inicial será lançado
+                  como movimento de abertura e auditado.
                 </small>
               </div>
-            </div>
-            <div className="assignment-list">
-              {pumps.isError ? (
-                <QueryError retry={() => pumps.refetch()} />
-              ) : (
-                (pumps.data ?? []).map(pump => {
-                  const assigned = tankRows
-                    .flatMap(tank =>
-                      tank.assignments.map(assignment => ({ tank, assignment }))
-                    )
-                    .find(row => row.assignment.pumpId === pump.id)?.tank;
-                  return (
-                    <div className="assignment-row" key={pump.id}>
-                      <div>
-                        <strong>{pump.number}</strong>
-                        <small>
-                          <FuelTypeBadge fuelType={pump.fuelType} />
-                          {" · atual: "}
-                          {assigned?.name ?? "sem tanque vinculado"}
-                        </small>
-                      </div>
-                      <select
-                        className="form-select"
-                        value={assigned?.id ?? ""}
-                        onChange={async event => {
-                          if (!event.target.value) return;
-                          try {
-                            await assignPump.mutateAsync({
-                              pumpId: pump.id,
-                              tankId: Number(event.target.value),
-                            });
-                            await refresh();
-                            toast.success(
-                              `${pump.number} vinculado ao tanque.`
-                            );
-                          } catch (error: any) {
-                            toast.error(error.message);
-                          }
-                        }}
-                        disabled={assignPump.isPending}
-                      >
-                        <option value="">Selecionar tanque</option>
-                        {tankRows
-                          .filter(
-                            tank =>
-                              tank.active && tank.fuelType === pump.fuelType
-                          )
-                          .map(tank => (
-                            <option key={tank.id} value={tank.id}>
-                              {tank.name} · {fuelTypeLabel(tank.fuelType)}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        )}
-      </section>
-
-      <div className="stock-operations-grid">
-        <section className="panel stock-section">
-          <div className="section-title">
-            <div>
-              <h2>Registrar entrada</h2>
-              <small>
-                Fornecedor, nota fiscal, custo e comprovante são
-                opcionais/obrigatórios conforme o campo.
-              </small>
-            </div>
-            <ArrowDown size={18} />
-          </div>
-          <form className="stock-form-grid" onSubmit={submitReceipt}>
-            <div className="field">
-              <Label>Tanque de destino</Label>
-              <select
-                className="form-select"
-                name="tankId"
-                required
-                defaultValue=""
-                onChange={event => setReceiptTankId(event.target.value)}
-              >
-                <option value="" disabled>
-                  Selecione
-                </option>
-                {tankRows
-                  .filter(tank => tank.active)
-                  .map(tank => (
-                    <option value={tank.id} key={tank.id}>
-                      {tank.name} · {fuelTypeLabel(tank.fuelType)}
-                    </option>
-                  ))}
-              </select>
-              {selectedTankFuel(receiptTankId) && (
-                <FuelTypeBadge fuelType={selectedTankFuel(receiptTankId)!} />
-              )}
-            </div>
-            <div className="field">
-              <Label>Fornecedor</Label>
-              <Input name="supplier" required minLength={2} maxLength={180} />
-            </div>
-            <div className="field">
-              <Label>Número da nota fiscal</Label>
-              <Input name="invoiceNumber" maxLength={80} />
-            </div>
-            <div className="field">
-              <Label>Data e horário</Label>
-              <Input
-                name="occurredAt"
-                type="datetime-local"
-                defaultValue={localDateTime()}
-                required
-              />
-            </div>
-            <div className="field">
-              <Label>Quantidade recebida (L)</Label>
-              <Input
-                name="quantityLiters"
-                type="number"
-                inputMode="decimal"
-                step="0.001"
-                min="0.001"
-                required
-              />
-            </div>
-            <div className="field">
-              <Label>Valor total (R$)</Label>
-              <Input
-                name="acquisitionValue"
-                inputMode="decimal"
-                placeholder="0,00"
-                required
-              />
-            </div>
-            <div className="field">
-              <Label>Comprovante (PDF/JPG/PNG, até 10 MB)</Label>
-              <Input
-                name="document"
-                type="file"
-                accept="application/pdf,image/jpeg,image/png"
-              />
-            </div>
-            <div className="field stock-form-wide">
-              <Label>Observações</Label>
-              <textarea
-                className="form-textarea"
-                name="notes"
-                maxLength={2000}
-                rows={2}
-              />
-            </div>
-            <div className="stock-form-actions">
-              <Button
-                className="primary-button"
-                disabled={
-                  createReceipt.isPending ||
-                  requestUpload.isPending ||
-                  attachDocument.isPending
-                }
-              >
-                <Upload size={16} />
-                {createReceipt.isPending ? "Registrando…" : "Registrar entrada"}
-              </Button>
-            </div>
-          </form>
-        </section>
-
-        <section className="panel stock-section">
-          <div className="section-title">
-            <div>
-              <h2>Registrar medição física</h2>
-              <small>
-                A leitura física fica em registro complementar; não substitui o
-                estoque teórico.
-              </small>
-            </div>
-            <Gauge size={18} />
-          </div>
-          <form className="stock-form-grid" onSubmit={submitMeasurement}>
-            <div className="field">
-              <Label>Tanque</Label>
-              <select
-                className="form-select"
-                name="tankId"
-                required
-                defaultValue=""
-                onChange={event => setMeasurementTankId(event.target.value)}
-              >
-                <option value="" disabled>
-                  Selecione
-                </option>
-                {tankRows
-                  .filter(tank => tank.active)
-                  .map(tank => (
-                    <option value={tank.id} key={tank.id}>
-                      {tank.name} · {fuelTypeLabel(tank.fuelType)}
-                    </option>
-                  ))}
-              </select>
-              {selectedTankFuel(measurementTankId) && (
-                <FuelTypeBadge
-                  fuelType={selectedTankFuel(measurementTankId)!}
+              <Plus size={18} aria-hidden="true" />
+            </summary>
+            <form className="stock-form-grid" onSubmit={submitTank}>
+              <div className="field">
+                <Label>Nome / identificação</Label>
+                <Input
+                  name="name"
+                  required
+                  minLength={2}
+                  maxLength={100}
+                  placeholder="Ex.: Tanque subterrâneo 01"
                 />
-              )}
+              </div>
+              <div className="field">
+                <Label>Código único</Label>
+                <Input
+                  name="code"
+                  required
+                  pattern="[A-Za-z0-9._-]+"
+                  maxLength={40}
+                  placeholder="TQ-01"
+                />
+              </div>
+              <div className="field">
+                <Label>Combustível do tanque</Label>
+                <FuelTypeRadioGroup
+                  name="fuelType"
+                  defaultValue="gasolina_comum"
+                  ariaLabel="Combustível do tanque"
+                />
+                <small>
+                  O tanque só poderá receber bicos do mesmo combustível.
+                </small>
+              </div>
+              <div className="field">
+                <Label>Capacidade total (L)</Label>
+                <Input
+                  name="capacityTotalLiters"
+                  type="number"
+                  inputMode="decimal"
+                  min="0.001"
+                  step="0.001"
+                  required
+                />
+              </div>
+              <div className="field">
+                <Label>Capacidade operacional (L)</Label>
+                <Input
+                  name="operationalCapacityLiters"
+                  type="number"
+                  inputMode="decimal"
+                  min="0.001"
+                  step="0.001"
+                  required
+                />
+              </div>
+              <div className="field">
+                <Label>Estoque mínimo (L)</Label>
+                <Input
+                  name="minimumStockLiters"
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.001"
+                  defaultValue="0"
+                  required
+                />
+              </div>
+              <div className="field">
+                <Label>Estoque inicial (L)</Label>
+                <Input
+                  name="initialStockLiters"
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.001"
+                  defaultValue="0"
+                  required
+                />
+              </div>
+              <div className="field">
+                <Label>Data inicial do estoque</Label>
+                <Input
+                  name="stockStartDate"
+                  type="date"
+                  defaultValue={today()}
+                  required
+                />
+              </div>
+              <div className="field">
+                <Label>Prazo de entrega (dias)</Label>
+                <Input
+                  name="replenishmentLeadDays"
+                  type="number"
+                  min="0"
+                  max="90"
+                  defaultValue="0"
+                  required
+                />
+              </div>
+              <div className="field">
+                <Label>Reserva de segurança (L)</Label>
+                <Input
+                  name="safetyReserveLiters"
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.001"
+                  defaultValue="0"
+                  required
+                />
+              </div>
+              <div className="field">
+                <Label>Faixa próximo do mínimo (%)</Label>
+                <Input
+                  name="nearMinimumPercent"
+                  type="number"
+                  min="0"
+                  max="100"
+                  defaultValue="15"
+                  required
+                />
+              </div>
+              <div className="field">
+                <Label>Autonomia em atenção (dias)</Label>
+                <Input
+                  name="autonomyWarningDays"
+                  type="number"
+                  min="1"
+                  max="30"
+                  defaultValue="3"
+                  required
+                />
+              </div>
+              <div className="field">
+                <Label>Autonomia crítica (dias)</Label>
+                <Input
+                  name="autonomyCriticalDays"
+                  type="number"
+                  min="1"
+                  max="30"
+                  defaultValue="2"
+                  required
+                />
+              </div>
+              <div className="field">
+                <Label>Alerta divergência física (%)</Label>
+                <Input
+                  name="discrepancyAlertPercent"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.001"
+                  defaultValue="2"
+                  required
+                />
+              </div>
+              <div className="field">
+                <Label>Sem atualização recente (dias)</Label>
+                <Input
+                  name="staleAfterDays"
+                  type="number"
+                  min="1"
+                  max="365"
+                  defaultValue="7"
+                  required
+                />
+              </div>
+              <div className="stock-form-actions">
+                <Button
+                  className="primary-button"
+                  disabled={createTank.isPending}
+                >
+                  <Plus size={16} />
+                  {createTank.isPending ? "Cadastrando…" : "Cadastrar tanque"}
+                </Button>
+              </div>
+            </form>
+          </details>
+        )}
+
+        <section className="stock-section">
+          <div className="section-title">
+            <div>
+              <h2>Tanques e origem dos bicos</h2>
+              <small>
+                Os valores e alertas são calculados a partir do histórico
+                persistido, sem amostras fictícias.
+              </small>
             </div>
-            <div className="field">
-              <Label>Volume físico (L)</Label>
-              <Input
-                name="physicalLiters"
-                type="number"
-                inputMode="decimal"
-                min="0"
-                step="0.001"
-                required
-              />
-            </div>
-            <div className="field">
-              <Label>Data e horário</Label>
-              <Input
-                name="measuredAt"
-                type="datetime-local"
-                defaultValue={localDateTime()}
-                required
-              />
-            </div>
-            <div className="field">
-              <Label>Observações</Label>
-              <Input name="notes" maxLength={2000} />
-            </div>
-            <div className="stock-form-actions">
+            <div className="heading-actions">
               <Button
-                className="primary-button"
-                disabled={recordMeasurement.isPending}
+                variant="outline"
+                onClick={() => exportStockSnapshot("pdf")}
               >
-                <Save size={16} />
-                {recordMeasurement.isPending
-                  ? "Salvando…"
-                  : "Registrar medição"}
+                <Download size={15} /> Posição PDF
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => exportStockSnapshot("xlsx")}
+              >
+                <FileSpreadsheet size={15} /> Posição Excel
               </Button>
             </div>
-          </form>
+          </div>
+          {tanks.isError ? (
+            <QueryError retry={() => tanks.refetch()} />
+          ) : tanks.isLoading ? (
+            <div className="panel table-loading">Carregando tanques…</div>
+          ) : !tankRows.length ? (
+            <div className="panel tank-empty">
+              <Warehouse size={22} />
+              <strong>Nenhum tanque cadastrado</strong>
+              <span>
+                {canManageTanks
+                  ? "Cadastre o estoque real para iniciar o acompanhamento."
+                  : "Solicite ao administrador o cadastro e a configuração dos tanques."}
+              </span>
+            </div>
+          ) : (
+            <div className="tank-card-grid stock-page-tank-grid">
+              {tankRows.map(tank => {
+                const summary = dashboardById.get(tank.id);
+                return (
+                  <article
+                    className={`panel tank-card health-${summary?.stockHealth ?? "atencao"}`}
+                    key={tank.id}
+                  >
+                    <div className="tank-card-top">
+                      <div>
+                        <span className="tank-code">
+                          {tank.code} · {tank.active ? "ATIVO" : "INATIVO"}
+                        </span>
+                        <h3>{tank.name}</h3>
+                        <FuelTypeBadge fuelType={tank.fuelType} />
+                      </div>
+                      <span
+                        className={`tank-health-badge health-${summary?.stockHealth ?? "atencao"}`}
+                      >
+                        {summary
+                          ? summary.stockLiters <=
+                            Number(tank.minimumStockLiters)
+                            ? "Abaixo do mínimo"
+                            : summary.stockHealth
+                          : "Sem resumo"}
+                      </span>
+                    </div>
+                    {summary ? (
+                      <>
+                        <div className="tank-primary-stock">
+                          <strong>{liters(summary.stockLiters)}</strong>
+                          <span>
+                            de {liters(tank.operationalCapacityLiters)}{" "}
+                            operacionais · {liters(tank.capacityTotalLiters)}{" "}
+                            totais
+                          </span>
+                        </div>
+                        <div className="tank-progress-track">
+                          <span
+                            className={`tank-progress-value health-${summary.stockHealth}`}
+                            style={{
+                              width: `${Math.min(100, summary.occupiedPercent)}%`,
+                            }}
+                          />
+                        </div>
+                        <div className="tank-progress-label">
+                          <span>
+                            {summary.occupiedPercent.toLocaleString("pt-BR", {
+                              maximumFractionDigits: 1,
+                            })}
+                            % ocupado
+                          </span>
+                          <span>mínimo {liters(tank.minimumStockLiters)}</span>
+                        </div>
+                        <div className="tank-key-metrics">
+                          <div>
+                            <span>Autonomia</span>
+                            <strong>
+                              {summary.autonomyDays === null
+                                ? "Sem previsão"
+                                : `${summary.autonomyDays.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} dias`}
+                            </strong>
+                          </div>
+                          <div>
+                            <span>
+                              Média diária (
+                              {summary.averageWindowDays ?? windowDays} dias)
+                            </span>
+                            <strong>
+                              {summary.averageDailyLiters > 0
+                                ? `${liters(summary.averageDailyLiters)}/dia`
+                                : "Sem histórico"}
+                            </strong>
+                          </div>
+                          <div>
+                            <span>Previsão de esgotamento</span>
+                            <strong>
+                              {summary.expectedEmptyDate ?? "Sem previsão"}
+                            </strong>
+                          </div>
+                          <div>
+                            <span>Reposição sugerida</span>
+                            <strong>
+                              {summary.suggestedReplenishmentLiters > 0
+                                ? liters(summary.suggestedReplenishmentLiters)
+                                : "Sem sugestão"}
+                            </strong>
+                          </div>
+                        </div>
+                        {summary.dataQuality === "baixa" && (
+                          <TankSampleCoverageNotice
+                            availableDays={summary.averageSampleDays}
+                            windowDays={windowDays}
+                            sampleStartDate={summary.averageSampleStartDate}
+                          />
+                        )}
+                        {summary.latestMeasurement && (
+                          <p className="tank-measurement-note">
+                            Última medição física{" "}
+                            {liters(summary.latestMeasurement.physicalLiters)};
+                            teórico preservado{" "}
+                            {liters(
+                              summary.latestMeasurement.theoreticalLiters
+                            )}
+                            .
+                          </p>
+                        )}
+                        {summary.alerts.map(alert => (
+                          <p
+                            className={`stock-alert-line ${alert.severity}`}
+                            key={alert.code}
+                          >
+                            <CircleAlert size={14} />
+                            {alert.message}
+                          </p>
+                        ))}
+                      </>
+                    ) : (
+                      <p className="tank-data-quality">
+                        Este tanque está inativo e não entra na projeção
+                        operacional.
+                      </p>
+                    )}
+                    {canManageTanks && (
+                      <div className="tank-admin-actions">
+                        <Button
+                          variant="outline"
+                          disabled={updateTank.isPending}
+                          onClick={async () => {
+                            try {
+                              await updateTank.mutateAsync({
+                                id: tank.id,
+                                name: tank.name,
+                                capacityTotalLiters: Number(
+                                  tank.capacityTotalLiters
+                                ),
+                                operationalCapacityLiters: Number(
+                                  tank.operationalCapacityLiters
+                                ),
+                                minimumStockLiters: Number(
+                                  tank.minimumStockLiters
+                                ),
+                                replenishmentLeadDays:
+                                  tank.replenishmentLeadDays,
+                                safetyReserveLiters: Number(
+                                  tank.safetyReserveLiters
+                                ),
+                                nearMinimumPercent: tank.nearMinimumPercent,
+                                autonomyWarningDays: tank.autonomyWarningDays,
+                                autonomyCriticalDays: tank.autonomyCriticalDays,
+                                discrepancyAlertPercent: Number(
+                                  tank.discrepancyAlertPercent
+                                ),
+                                staleAfterDays: tank.staleAfterDays,
+                                active: !tank.active,
+                              });
+                              await refresh();
+                              toast.success(
+                                tank.active
+                                  ? "Tanque inativado."
+                                  : "Tanque reativado."
+                              );
+                            } catch (error: any) {
+                              toast.error(error.message);
+                            }
+                          }}
+                        >
+                          {tank.active ? "Inativar" : "Reativar"}
+                        </Button>
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          )}
+          {canManageTanks && (
+            <div className="panel assignment-panel">
+              <div className="section-title">
+                <div>
+                  <h2>Vincular bicos a tanques</h2>
+                  <small>
+                    O tanque precisa ter o mesmo combustível do bico. Uma origem
+                    explícita é obrigatória para registrar saídas.
+                  </small>
+                </div>
+              </div>
+              <div className="assignment-list">
+                {pumps.isError ? (
+                  <QueryError retry={() => pumps.refetch()} />
+                ) : (
+                  (pumps.data ?? []).map(pump => {
+                    const assigned = tankRows
+                      .flatMap(tank =>
+                        tank.assignments.map(assignment => ({
+                          tank,
+                          assignment,
+                        }))
+                      )
+                      .find(row => row.assignment.pumpId === pump.id)?.tank;
+                    return (
+                      <div className="assignment-row" key={pump.id}>
+                        <div>
+                          <strong>{pump.number}</strong>
+                          <small>
+                            <FuelTypeBadge fuelType={pump.fuelType} />
+                            {" · atual: "}
+                            {assigned?.name ?? "sem tanque vinculado"}
+                          </small>
+                        </div>
+                        <select
+                          className="form-select"
+                          value={assigned?.id ?? ""}
+                          onChange={async event => {
+                            if (!event.target.value) return;
+                            try {
+                              await assignPump.mutateAsync({
+                                pumpId: pump.id,
+                                tankId: Number(event.target.value),
+                              });
+                              await refresh();
+                              toast.success(
+                                `${pump.number} vinculado ao tanque.`
+                              );
+                            } catch (error: any) {
+                              toast.error(error.message);
+                            }
+                          }}
+                          disabled={assignPump.isPending}
+                        >
+                          <option value="">Selecionar tanque</option>
+                          {tankRows
+                            .filter(
+                              tank =>
+                                tank.active && tank.fuelType === pump.fuelType
+                            )
+                            .map(tank => (
+                              <option key={tank.id} value={tank.id}>
+                                {tank.name} · {fuelTypeLabel(tank.fuelType)}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
+        </section>
+      </section>
+      <section
+        id="stock-operations"
+        className="stock-view"
+        aria-labelledby="stock-operations-title"
+        hidden={activeArea !== "operations"}
+      >
+        <header className="stock-view-heading">
+          <div>
+            <h2 id="stock-operations-title">Operações</h2>
+            <p>
+              Registre entradas, confira o volume físico ou documente uma baixa
+              extraordinária.
+            </p>
+          </div>
+        </header>
+        <div className="stock-operations-grid">
+          <section className="panel stock-section">
+            <div className="section-title">
+              <div>
+                <h2>Registrar entrada</h2>
+                <small>
+                  Fornecedor, nota fiscal, custo e comprovante são
+                  opcionais/obrigatórios conforme o campo.
+                </small>
+              </div>
+              <ArrowDown size={18} />
+            </div>
+            <form className="stock-form-grid" onSubmit={submitReceipt}>
+              <div className="field">
+                <Label>Tanque de destino</Label>
+                <select
+                  className="form-select"
+                  name="tankId"
+                  required
+                  defaultValue=""
+                  onChange={event => setReceiptTankId(event.target.value)}
+                >
+                  <option value="" disabled>
+                    Selecione
+                  </option>
+                  {tankRows
+                    .filter(tank => tank.active)
+                    .map(tank => (
+                      <option value={tank.id} key={tank.id}>
+                        {tank.name} · {fuelTypeLabel(tank.fuelType)}
+                      </option>
+                    ))}
+                </select>
+                {selectedTankFuel(receiptTankId) && (
+                  <FuelTypeBadge fuelType={selectedTankFuel(receiptTankId)!} />
+                )}
+              </div>
+              <div className="field">
+                <Label>Fornecedor</Label>
+                <Input name="supplier" required minLength={2} maxLength={180} />
+              </div>
+              <div className="field">
+                <Label>Número da nota fiscal</Label>
+                <Input name="invoiceNumber" maxLength={80} />
+              </div>
+              <div className="field">
+                <Label>Data e horário</Label>
+                <Input
+                  name="occurredAt"
+                  type="datetime-local"
+                  defaultValue={localDateTime()}
+                  required
+                />
+              </div>
+              <div className="field">
+                <Label>Quantidade recebida (L)</Label>
+                <Input
+                  name="quantityLiters"
+                  type="number"
+                  inputMode="decimal"
+                  step="0.001"
+                  min="0.001"
+                  required
+                />
+              </div>
+              <div className="field">
+                <Label>Valor total (R$)</Label>
+                <Input
+                  name="acquisitionValue"
+                  inputMode="decimal"
+                  placeholder="0,00"
+                  required
+                />
+              </div>
+              <div className="field">
+                <Label>Comprovante (PDF/JPG/PNG, até 10 MB)</Label>
+                <Input
+                  name="document"
+                  type="file"
+                  accept="application/pdf,image/jpeg,image/png"
+                />
+              </div>
+              <div className="field stock-form-wide">
+                <Label>Observações</Label>
+                <textarea
+                  className="form-textarea"
+                  name="notes"
+                  maxLength={2000}
+                  rows={2}
+                />
+              </div>
+              <div className="stock-form-actions">
+                <Button
+                  className="primary-button"
+                  disabled={
+                    createReceipt.isPending ||
+                    requestUpload.isPending ||
+                    attachDocument.isPending
+                  }
+                >
+                  <Upload size={16} />
+                  {createReceipt.isPending
+                    ? "Registrando…"
+                    : "Registrar entrada"}
+                </Button>
+              </div>
+            </form>
+          </section>
+
+          <section className="panel stock-section">
+            <div className="section-title">
+              <div>
+                <h2>Registrar medição física</h2>
+                <small>
+                  A leitura física fica em registro complementar; não substitui
+                  o estoque teórico.
+                </small>
+              </div>
+              <Gauge size={18} />
+            </div>
+            <form className="stock-form-grid" onSubmit={submitMeasurement}>
+              <div className="field">
+                <Label>Tanque</Label>
+                <select
+                  className="form-select"
+                  name="tankId"
+                  required
+                  defaultValue=""
+                  onChange={event => setMeasurementTankId(event.target.value)}
+                >
+                  <option value="" disabled>
+                    Selecione
+                  </option>
+                  {tankRows
+                    .filter(tank => tank.active)
+                    .map(tank => (
+                      <option value={tank.id} key={tank.id}>
+                        {tank.name} · {fuelTypeLabel(tank.fuelType)}
+                      </option>
+                    ))}
+                </select>
+                {selectedTankFuel(measurementTankId) && (
+                  <FuelTypeBadge
+                    fuelType={selectedTankFuel(measurementTankId)!}
+                  />
+                )}
+              </div>
+              <div className="field">
+                <Label>Volume físico (L)</Label>
+                <Input
+                  name="physicalLiters"
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.001"
+                  required
+                />
+              </div>
+              <div className="field">
+                <Label>Data e horário</Label>
+                <Input
+                  name="measuredAt"
+                  type="datetime-local"
+                  defaultValue={localDateTime()}
+                  required
+                />
+              </div>
+              <div className="field">
+                <Label>Observações</Label>
+                <Input name="notes" maxLength={2000} />
+              </div>
+              <div className="stock-form-actions">
+                <Button
+                  className="primary-button"
+                  disabled={recordMeasurement.isPending}
+                >
+                  <Save size={16} />
+                  {recordMeasurement.isPending
+                    ? "Salvando…"
+                    : "Registrar medição"}
+                </Button>
+              </div>
+            </form>
+          </section>
+
+          <section className="panel stock-section">
+            <div className="section-title">
+              <div>
+                <h2>Baixa extraordinária</h2>
+                <small>
+                  Exige motivo e autorização gerencial; cada movimento fica
+                  auditado.
+                </small>
+              </div>
+              <ArrowUp size={18} />
+            </div>
+            <form className="stock-form-grid" onSubmit={submitWriteoff}>
+              <div className="field">
+                <Label>Tanque</Label>
+                <select
+                  className="form-select"
+                  name="tankId"
+                  required
+                  defaultValue=""
+                  onChange={event => setWriteoffTankId(event.target.value)}
+                >
+                  <option value="" disabled>
+                    Selecione
+                  </option>
+                  {tankRows
+                    .filter(tank => tank.active)
+                    .map(tank => (
+                      <option value={tank.id} key={tank.id}>
+                        {tank.name} · {fuelTypeLabel(tank.fuelType)}
+                      </option>
+                    ))}
+                </select>
+                {selectedTankFuel(writeoffTankId) && (
+                  <FuelTypeBadge fuelType={selectedTankFuel(writeoffTankId)!} />
+                )}
+              </div>
+              <div className="field">
+                <Label>Quantidade (L)</Label>
+                <Input
+                  name="quantityLiters"
+                  type="number"
+                  inputMode="decimal"
+                  min="0.001"
+                  step="0.001"
+                  required
+                />
+              </div>
+              <div className="field">
+                <Label>Data e horário</Label>
+                <Input
+                  name="occurredAt"
+                  type="datetime-local"
+                  defaultValue={localDateTime()}
+                  required
+                />
+              </div>
+              <div className="field">
+                <Label>Motivo documentado</Label>
+                <Input name="reason" minLength={5} maxLength={1000} required />
+              </div>
+              <div className="stock-form-actions">
+                <Button
+                  className="primary-button"
+                  disabled={recordWriteoff.isPending}
+                >
+                  <CircleAlert size={16} />
+                  {recordWriteoff.isPending
+                    ? "Registrando…"
+                    : "Registrar baixa autorizada"}
+                </Button>
+              </div>
+            </form>
+          </section>
+        </div>
+      </section>
+      <section
+        id="stock-history"
+        className="stock-view"
+        aria-labelledby="stock-history-title"
+        hidden={activeArea !== "history"}
+      >
+        <header className="stock-view-heading">
+          <div>
+            <h2 id="stock-history-title">Histórico</h2>
+            <p>
+              Consulte movimentos e medições registrados; filtre os dados e
+              exporte os resultados.
+            </p>
+          </div>
+        </header>
+        <section className="panel stock-section movement-report-section">
+          <div className="section-title">
+            <div>
+              <h2>Histórico de movimentações e relatórios</h2>
+              <small>
+                Movimentos com saldo acumulado, responsável, documento e origem.
+              </small>
+            </div>
+            <div className="heading-actions">
+              <Button variant="outline" onClick={() => exportMovements("pdf")}>
+                <Download size={15} /> PDF
+              </Button>
+              <Button variant="outline" onClick={() => exportMovements("xlsx")}>
+                <FileSpreadsheet size={15} /> Excel
+              </Button>
+            </div>
+          </div>
+          <div className="filter-strip stock-filter-strip">
+            <div className="field">
+              <Label>De</Label>
+              <Input
+                type="date"
+                value={filterFrom}
+                onChange={event => setFilterFrom(event.target.value)}
+              />
+            </div>
+            <div className="field">
+              <Label>Até</Label>
+              <Input
+                type="date"
+                value={filterTo}
+                onChange={event => setFilterTo(event.target.value)}
+              />
+            </div>
+            <div className="field">
+              <Label>Tanque</Label>
+              <select
+                className="form-select"
+                value={filterTank}
+                onChange={event => setFilterTank(event.target.value)}
+              >
+                <option value="">Todos</option>
+                {tankRows.map(tank => (
+                  <option key={tank.id} value={tank.id}>
+                    {tank.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <FuelTypeFilter
+              id="stock-fuel-filter"
+              label="Combustível"
+              value={filterFuel}
+              onChange={setFilterFuel}
+            />
+            <div className="field">
+              <Label>Movimentação</Label>
+              <select
+                className="form-select"
+                value={filterType}
+                onChange={event => setFilterType(event.target.value)}
+              >
+                <option value="">Todas</option>
+                {Object.entries(movementNames).map(([key, label]) => (
+                  <option key={key} value={key}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {movements.isError ? (
+            <QueryError retry={() => movements.refetch()} />
+          ) : movements.isLoading ? (
+            <div className="table-loading">Carregando movimentações…</div>
+          ) : (movements.data ?? []).length ? (
+            <div className="table-scroll">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Data</th>
+                    <th>Tanque / combustível</th>
+                    <th>Tipo</th>
+                    <th>Quantidade</th>
+                    <th>Estoque resultante</th>
+                    <th>Custo de aquisição</th>
+                    <th>Custo/L</th>
+                    <th>Responsável</th>
+                    <th>Documento relacionado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(movements.data ?? []).map(row => (
+                    <tr key={row.id}>
+                      <td>
+                        {new Date(row.occurredAt).toLocaleString("pt-BR")}
+                      </td>
+                      <td>
+                        {row.tankName}
+                        <small>
+                          <FuelTypeBadge fuelType={row.fuelType} />{" "}
+                          {row.tankCode}
+                        </small>
+                      </td>
+                      <td>
+                        {movementNames[row.movementType] ?? row.movementType}
+                      </td>
+                      <td
+                        className={
+                          Number(row.quantityLiters) < 0
+                            ? "text-danger"
+                            : "text-success"
+                        }
+                      >
+                        {movementQuantity(row.quantityLiters)}
+                      </td>
+                      <td>{liters(row.balanceAfterLiters)}</td>
+                      <td>
+                        {row.movementType === "receipt" &&
+                        row.acquisitionValueCents !== null
+                          ? money(row.acquisitionValueCents)
+                          : "—"}
+                      </td>
+                      <td>
+                        {row.movementType === "receipt" &&
+                        row.acquisitionValueCents !== null &&
+                        Number(row.quantityLiters) > 0
+                          ? `${money(Math.round(row.acquisitionValueCents / Number(row.quantityLiters)))}/L`
+                          : "—"}
+                      </td>
+                      <td>{row.responsible}</td>
+                      <td>
+                        {row.documentKey ? (
+                          <a
+                            className="inline-link"
+                            href={`/api/files/${row.documentKey}`}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Comprovante
+                          </a>
+                        ) : (
+                          (row.invoiceNumber ??
+                          (row.sourceClosureId
+                            ? `Fechamento #${row.sourceClosureId}`
+                            : "—"))
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="tank-empty">
+              <Fuel size={21} />
+              <strong>Nenhuma movimentação encontrada</strong>
+              <span>
+                Quando houver estoque inicial, entradas ou fechamentos, o
+                histórico aparecerá aqui.
+              </span>
+            </div>
+          )}
         </section>
 
         <section className="panel stock-section">
           <div className="section-title">
             <div>
-              <h2>Baixa extraordinária</h2>
-              <small>
-                Exige motivo e autorização gerencial; cada movimento fica
-                auditado.
-              </small>
+              <h2>Medições físicas</h2>
+              <small>Comparação registrada no momento da medição.</small>
             </div>
-            <ArrowUp size={18} />
-          </div>
-          <form className="stock-form-grid" onSubmit={submitWriteoff}>
-            <div className="field">
-              <Label>Tanque</Label>
-              <select
-                className="form-select"
-                name="tankId"
-                required
-                defaultValue=""
-                onChange={event => setWriteoffTankId(event.target.value)}
-              >
-                <option value="" disabled>
-                  Selecione
-                </option>
-                {tankRows
-                  .filter(tank => tank.active)
-                  .map(tank => (
-                    <option value={tank.id} key={tank.id}>
-                      {tank.name} · {fuelTypeLabel(tank.fuelType)}
-                    </option>
-                  ))}
-              </select>
-              {selectedTankFuel(writeoffTankId) && (
-                <FuelTypeBadge fuelType={selectedTankFuel(writeoffTankId)!} />
-              )}
-            </div>
-            <div className="field">
-              <Label>Quantidade (L)</Label>
-              <Input
-                name="quantityLiters"
-                type="number"
-                inputMode="decimal"
-                min="0.001"
-                step="0.001"
-                required
-              />
-            </div>
-            <div className="field">
-              <Label>Data e horário</Label>
-              <Input
-                name="occurredAt"
-                type="datetime-local"
-                defaultValue={localDateTime()}
-                required
-              />
-            </div>
-            <div className="field">
-              <Label>Motivo documentado</Label>
-              <Input name="reason" minLength={5} maxLength={1000} required />
-            </div>
-            <div className="stock-form-actions">
+            <div className="heading-actions">
               <Button
-                className="primary-button"
-                disabled={recordWriteoff.isPending}
+                variant="outline"
+                onClick={() => exportMeasurements("pdf")}
               >
-                <CircleAlert size={16} />
-                {recordWriteoff.isPending
-                  ? "Registrando…"
-                  : "Registrar baixa autorizada"}
+                <Download size={15} /> PDF
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => exportMeasurements("xlsx")}
+              >
+                <FileSpreadsheet size={15} /> Excel
               </Button>
             </div>
-          </form>
+          </div>
+          {measurements.isError ? (
+            <QueryError retry={() => measurements.refetch()} />
+          ) : measurements.isLoading ? (
+            <div className="table-loading">Carregando medições…</div>
+          ) : (measurements.data ?? []).length ? (
+            <div className="table-scroll">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Data</th>
+                    <th>Tanque</th>
+                    <th>Físico</th>
+                    <th>Teórico no momento</th>
+                    <th>Diferença</th>
+                    <th>Responsável</th>
+                    <th>Observações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(measurements.data ?? []).map(row => (
+                    <tr key={row.measurement.id}>
+                      <td>
+                        {new Date(row.measurement.measuredAt).toLocaleString(
+                          "pt-BR"
+                        )}
+                      </td>
+                      <td>
+                        {row.tankName}
+                        <small>{row.tankCode}</small>
+                      </td>
+                      <td>{liters(row.measurement.physicalLiters)}</td>
+                      <td>{liters(row.measurement.theoreticalLiters)}</td>
+                      <td
+                        className={
+                          Number(row.measurement.differenceLiters) < 0
+                            ? "text-danger"
+                            : "text-success"
+                        }
+                      >
+                        {movementQuantity(row.measurement.differenceLiters)}
+                        {row.measurement.differencePercent !== null
+                          ? ` (${Number(row.measurement.differencePercent).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%)`
+                          : ""}
+                      </td>
+                      <td>{row.measuredByName}</td>
+                      <td>{row.measurement.notes || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="tank-empty">
+              Nenhuma medição física foi registrada.
+            </div>
+          )}
         </section>
-      </div>
-
-      <section className="panel stock-section movement-report-section">
-        <div className="section-title">
-          <div>
-            <h2>Histórico de movimentações e relatórios</h2>
-            <small>
-              Movimentos com saldo acumulado, responsável, documento e origem.
-            </small>
-          </div>
-          <div className="heading-actions">
-            <Button variant="outline" onClick={() => exportMovements("pdf")}>
-              <Download size={15} /> PDF
-            </Button>
-            <Button variant="outline" onClick={() => exportMovements("xlsx")}>
-              <FileSpreadsheet size={15} /> Excel
-            </Button>
-          </div>
-        </div>
-        <div className="filter-strip stock-filter-strip">
-          <div className="field">
-            <Label>De</Label>
-            <Input
-              type="date"
-              value={filterFrom}
-              onChange={event => setFilterFrom(event.target.value)}
-            />
-          </div>
-          <div className="field">
-            <Label>Até</Label>
-            <Input
-              type="date"
-              value={filterTo}
-              onChange={event => setFilterTo(event.target.value)}
-            />
-          </div>
-          <div className="field">
-            <Label>Tanque</Label>
-            <select
-              className="form-select"
-              value={filterTank}
-              onChange={event => setFilterTank(event.target.value)}
-            >
-              <option value="">Todos</option>
-              {tankRows.map(tank => (
-                <option key={tank.id} value={tank.id}>
-                  {tank.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <FuelTypeFilter
-            id="stock-fuel-filter"
-            label="Combustível"
-            value={filterFuel}
-            onChange={setFilterFuel}
-          />
-          <div className="field">
-            <Label>Movimentação</Label>
-            <select
-              className="form-select"
-              value={filterType}
-              onChange={event => setFilterType(event.target.value)}
-            >
-              <option value="">Todas</option>
-              {Object.entries(movementNames).map(([key, label]) => (
-                <option key={key} value={key}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-        {movements.isError ? (
-          <QueryError retry={() => movements.refetch()} />
-        ) : movements.isLoading ? (
-          <div className="table-loading">Carregando movimentações…</div>
-        ) : (movements.data ?? []).length ? (
-          <div className="table-scroll">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Data</th>
-                  <th>Tanque / combustível</th>
-                  <th>Tipo</th>
-                  <th>Quantidade</th>
-                  <th>Estoque resultante</th>
-                  <th>Custo de aquisição</th>
-                  <th>Custo/L</th>
-                  <th>Responsável</th>
-                  <th>Documento relacionado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(movements.data ?? []).map(row => (
-                  <tr key={row.id}>
-                    <td>{new Date(row.occurredAt).toLocaleString("pt-BR")}</td>
-                    <td>
-                      {row.tankName}
-                      <small>
-                        <FuelTypeBadge fuelType={row.fuelType} /> {row.tankCode}
-                      </small>
-                    </td>
-                    <td>
-                      {movementNames[row.movementType] ?? row.movementType}
-                    </td>
-                    <td
-                      className={
-                        Number(row.quantityLiters) < 0
-                          ? "text-danger"
-                          : "text-success"
-                      }
-                    >
-                      {movementQuantity(row.quantityLiters)}
-                    </td>
-                    <td>{liters(row.balanceAfterLiters)}</td>
-                    <td>
-                      {row.movementType === "receipt" &&
-                      row.acquisitionValueCents !== null
-                        ? money(row.acquisitionValueCents)
-                        : "—"}
-                    </td>
-                    <td>
-                      {row.movementType === "receipt" &&
-                      row.acquisitionValueCents !== null &&
-                      Number(row.quantityLiters) > 0
-                        ? `${money(Math.round(row.acquisitionValueCents / Number(row.quantityLiters)))}/L`
-                        : "—"}
-                    </td>
-                    <td>{row.responsible}</td>
-                    <td>
-                      {row.documentKey ? (
-                        <a
-                          className="inline-link"
-                          href={`/api/files/${row.documentKey}`}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          Comprovante
-                        </a>
-                      ) : (
-                        (row.invoiceNumber ??
-                        (row.sourceClosureId
-                          ? `Fechamento #${row.sourceClosureId}`
-                          : "—"))
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="tank-empty">
-            <Fuel size={21} />
-            <strong>Nenhuma movimentação encontrada</strong>
-            <span>
-              Quando houver estoque inicial, entradas ou fechamentos, o
-              histórico aparecerá aqui.
-            </span>
-          </div>
-        )}
       </section>
-
-      <section className="panel stock-section">
-        <div className="section-title">
-          <div>
-            <h2>Medições físicas</h2>
-            <small>Comparação registrada no momento da medição.</small>
-          </div>
-          <div className="heading-actions">
-            <Button variant="outline" onClick={() => exportMeasurements("pdf")}>
-              <Download size={15} /> PDF
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => exportMeasurements("xlsx")}
-            >
-              <FileSpreadsheet size={15} /> Excel
-            </Button>
-          </div>
-        </div>
-        {measurements.isError ? (
-          <QueryError retry={() => measurements.refetch()} />
-        ) : measurements.isLoading ? (
-          <div className="table-loading">Carregando medições…</div>
-        ) : (measurements.data ?? []).length ? (
-          <div className="table-scroll">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Data</th>
-                  <th>Tanque</th>
-                  <th>Físico</th>
-                  <th>Teórico no momento</th>
-                  <th>Diferença</th>
-                  <th>Responsável</th>
-                  <th>Observações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(measurements.data ?? []).map(row => (
-                  <tr key={row.measurement.id}>
-                    <td>
-                      {new Date(row.measurement.measuredAt).toLocaleString(
-                        "pt-BR"
-                      )}
-                    </td>
-                    <td>
-                      {row.tankName}
-                      <small>{row.tankCode}</small>
-                    </td>
-                    <td>{liters(row.measurement.physicalLiters)}</td>
-                    <td>{liters(row.measurement.theoreticalLiters)}</td>
-                    <td
-                      className={
-                        Number(row.measurement.differenceLiters) < 0
-                          ? "text-danger"
-                          : "text-success"
-                      }
-                    >
-                      {movementQuantity(row.measurement.differenceLiters)}
-                      {row.measurement.differencePercent !== null
-                        ? ` (${Number(row.measurement.differencePercent).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%)`
-                        : ""}
-                    </td>
-                    <td>{row.measuredByName}</td>
-                    <td>{row.measurement.notes || "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="tank-empty">
-            Nenhuma medição física foi registrada.
-          </div>
-        )}
-      </section>
-
-      <section className="panel stock-note">
-        <CircleAlert size={17} />
-        <p>
-          <strong>Planejamento de reposição não gera pedidos.</strong> A
-          quantidade sugerida considera consumo médio real, estoque mínimo,
-          prazo e reserva, limitada à capacidade operacional. A decisão final é
-          do gerente ou administrador.
-        </p>
-      </section>
-    </>
+    </div>
   );
 }

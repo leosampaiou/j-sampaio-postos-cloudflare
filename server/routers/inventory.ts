@@ -20,6 +20,7 @@ import {
 } from "../../shared/businessDate";
 import { FUEL_TYPES } from "../../shared/fuel";
 import {
+  MINIMUM_AUTONOMY_SAMPLE_DAYS,
   autonomyInDays,
   classifyStockHealth,
   roundLiters,
@@ -328,7 +329,7 @@ export const inventoryRouter = router({
         });
         const dataQuality =
           !assignedPumpIds.size ||
-          availableDays < 3 ||
+          availableDays < MINIMUM_AUTONOMY_SAMPLE_DAYS ||
           availableDays < windowDays
             ? ("baixa" as const)
             : ("adequada" as const);
@@ -425,6 +426,8 @@ export const inventoryRouter = router({
                 )
               : 0,
           averageDailyLiters,
+          averageSampleDays: availableDays,
+          averageSampleStartDate: windowSummary.effectiveStart,
           averageWindowDays: windowDays,
           averages: [7, 15, 30].map(days => {
             const start = shiftCalendarDate(today, -(days - 1));

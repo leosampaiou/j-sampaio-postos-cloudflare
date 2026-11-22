@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { ArrowRight, CircleAlert, Fuel, Gauge } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { FuelTypeBadge } from "@/components/FuelType";
+import TankSampleCoverageNotice from "@/components/TankSampleCoverageNotice";
 
 const liters = (value: number) =>
   `${Number(value ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 1 })} L`;
@@ -178,10 +179,11 @@ export default function TankStockOverview() {
                 </div>
               </div>
               {tank.dataQuality === "baixa" && (
-                <p className="tank-data-quality">
-                  Histórico insuficiente para uma previsão confiável nesta
-                  janela.
-                </p>
+                <TankSampleCoverageNotice
+                  availableDays={tank.averageSampleDays}
+                  windowDays={windowDays}
+                  sampleStartDate={tank.averageSampleStartDate}
+                />
               )}
               {tank.latestMeasurement && (
                 <p className="tank-measurement-note">

@@ -24,6 +24,7 @@ import {
   FuelTypeFilter,
   FuelTypeRadioGroup,
 } from "@/components/FuelType";
+import TankSampleCoverageNotice from "@/components/TankSampleCoverageNotice";
 import { FUEL_TYPES, fuelTypeLabel } from "@shared/fuel";
 import {
   exportManagementPdf,
@@ -807,6 +808,13 @@ export default function StockPage({ user }: { user: User }) {
                           </strong>
                         </div>
                       </div>
+                      {summary.dataQuality === "baixa" && (
+                        <TankSampleCoverageNotice
+                          availableDays={summary.averageSampleDays}
+                          windowDays={windowDays}
+                          sampleStartDate={summary.averageSampleStartDate}
+                        />
+                      )}
                       {summary.latestMeasurement && (
                         <p className="tank-measurement-note">
                           Última medição física{" "}

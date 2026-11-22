@@ -106,8 +106,8 @@ type ClosureSales = {
   finalizedAt: Date | string;
   rows: TankSalesRecord[];
 };
+export const MINIMUM_AUTONOMY_SAMPLE_DAYS = 3;
 const REQUIRED_SHIFTS = ["manha", "tarde", "noite"] as const;
-
 export function summarizeTankSalesWindow(
   sales: readonly TankSalesRecord[],
   assignedPumpIds: readonly number[] | ReadonlySet<number>,
@@ -117,7 +117,7 @@ export function summarizeTankSalesWindow(
   windowStart: string,
   today: string,
   stockStartDate: string,
-  minimumSampleDays = 3
+  minimumSampleDays = MINIMUM_AUTONOMY_SAMPLE_DAYS
 ) {
   const effectiveStart =
     stockStartDate > windowStart ? stockStartDate : windowStart;

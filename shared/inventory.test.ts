@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  MINIMUM_AUTONOMY_SAMPLE_DAYS,
   autonomyInDays,
   calendarDaysInclusive,
   classifyStockHealth,
@@ -58,6 +59,10 @@ function completeDay(
 }
 
 describe("inventory estimates", () => {
+  it("requires three complete days before enabling autonomy estimates", () => {
+    expect(MINIMUM_AUTONOMY_SAMPLE_DAYS).toBe(3);
+  });
+
   it("does not invent autonomy when daily average is zero", () => {
     expect(autonomyInDays(8500, 0)).toBeNull();
   });

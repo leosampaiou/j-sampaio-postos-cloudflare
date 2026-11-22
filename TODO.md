@@ -1239,7 +1239,7 @@ Nenhum deploy, escrita remota, DDL, acesso ao MySQL antigo ou aos objetos antigo
 - Calcular autonomia usando o estoque teórico atual e somente vendas finalizadas do combustível correspondente aos bicos vinculados ao tanque no instante real de finalização de cada fechamento.
 - Reconstruir o histórico de vínculo bico–tanque a partir dos registros estruturados e do formato legado de auditoria; mudar um vínculo não pode reclassificar vendas históricas para o tanque novo.
 - Considerar uma amostra diária apenas quando houver exatamente um fechamento finalizado de cada turno (manhã, tarde e noite) e todos os bicos do tanque naquela data tiverem dados válidos; não tratar turnos ausentes como vendas zero.
-- Atualizar resumo e autonomia após cada fechamento finalizado; sem dados suficientes, com menos de três dias completos, sem bicos ativos vinculados ou com média zero, não inventar previsão e comunicar a confiabilidade/ausência de dados.
+- Atualizar resumo e autonomia após cada fechamento finalizado; sem dados suficientes, com menos de três dias completos, sem bicos ativos vinculados ou com média zero, não inventar previsão e comunicar a confiabilidade/ausência de dados, quantidade de dias completos aceitos e data inicial efetiva da amostra.
 - Preservar as médias de 7, 15 e 30 dias, o início de estoque do tanque, alertas, capacidade, reposição e demais dados operacionais.
 
 ### [x] Dashboard e período padrão

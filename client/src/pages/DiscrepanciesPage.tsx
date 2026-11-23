@@ -349,9 +349,9 @@ export default function DiscrepanciesPage({ user }: { user: User }) {
         const uploaded = await fetch(target.uploadUrl, {
           method: "PUT",
           headers: {
-              "Content-Type": target.contentType,
-              "x-csrf-token": sessionStorage.getItem("jsampaio-csrf") ?? "",
-            },
+            "Content-Type": target.contentType,
+            "x-csrf-token": sessionStorage.getItem("jsampaio-csrf") ?? "",
+          },
           body: evidenceFile,
         });
         if (!uploaded.ok)
@@ -473,7 +473,11 @@ export default function DiscrepanciesPage({ user }: { user: User }) {
             ocorrências.
           </p>
         </div>
-        <div className="heading-actions">
+        <div
+          className="heading-actions discrepancy-filter-controls"
+          role="group"
+          aria-label="Filtros do relatório de divergências"
+        >
           <div className="field">
             <Label htmlFor="discrepancy-month">Mês de referência</Label>
             <Input
@@ -763,7 +767,12 @@ export default function DiscrepanciesPage({ user }: { user: User }) {
         ) : list.isLoading ? (
           <div className="table-loading">Carregando ocorrências…</div>
         ) : cases.length ? (
-          <div className="table-scroll">
+          <div
+            className="table-scroll"
+            role="region"
+            aria-label="Tabela de ocorrências individuais; deslize horizontalmente para ver todas as colunas"
+            tabIndex={0}
+          >
             <table className="data-table">
               <thead>
                 <tr>
@@ -884,8 +893,11 @@ export default function DiscrepanciesPage({ user }: { user: User }) {
                 </div>
                 <form className="discrepancy-form-grid" onSubmit={saveAnalysis}>
                   <div className="field">
-                    <Label>Status da ocorrência</Label>
+                    <Label htmlFor="analysis-status">
+                      Status da ocorrência
+                    </Label>
                     <select
+                      id="analysis-status"
                       className="form-select"
                       value={analysisStatus}
                       onChange={event =>
@@ -903,8 +915,11 @@ export default function DiscrepanciesPage({ user }: { user: User }) {
                     </select>
                   </div>
                   <div className="field discrepancy-form-wide">
-                    <Label>Justificativa / causa apurada</Label>
+                    <Label htmlFor="analysis-justification">
+                      Justificativa / causa apurada
+                    </Label>
                     <textarea
+                      id="analysis-justification"
                       className="form-textarea"
                       rows={3}
                       maxLength={4000}
@@ -914,8 +929,11 @@ export default function DiscrepanciesPage({ user }: { user: User }) {
                     />
                   </div>
                   <div className="field discrepancy-form-wide">
-                    <Label>Comentários e resultado da análise</Label>
+                    <Label htmlFor="analysis-notes">
+                      Comentários e resultado da análise
+                    </Label>
                     <textarea
+                      id="analysis-notes"
                       className="form-textarea"
                       rows={3}
                       maxLength={4000}
@@ -925,8 +943,11 @@ export default function DiscrepanciesPage({ user }: { user: User }) {
                     />
                   </div>
                   <div className="field">
-                    <Label>Evidência (PDF, JPG ou PNG; até 10 MB)</Label>
+                    <Label htmlFor="analysis-evidence">
+                      Evidência (PDF, JPG ou PNG; até 10 MB)
+                    </Label>
                     <Input
+                      id="analysis-evidence"
                       key={selectedCase.id}
                       type="file"
                       accept="application/pdf,image/jpeg,image/png"
@@ -969,15 +990,21 @@ export default function DiscrepanciesPage({ user }: { user: User }) {
                 onSubmit={submitPayrollReview}
               >
                 <div className="field">
-                  <Label>Ocorrência selecionada</Label>
+                  <Label htmlFor="payroll-selected-case">
+                    Ocorrência selecionada
+                  </Label>
                   <Input
+                    id="payroll-selected-case"
                     value={`#${selectedCase.id} · ${selectedCase.type} · ${brl(selectedCase.amountCents)}`}
                     readOnly
                   />
                 </div>
                 <div className="field">
-                  <Label>Valor em análise (R$)</Label>
+                  <Label htmlFor="payroll-review-amount">
+                    Valor em análise (R$)
+                  </Label>
                   <Input
+                    id="payroll-review-amount"
                     inputMode="decimal"
                     value={reviewAmount}
                     onChange={event => setReviewAmount(event.target.value)}
@@ -985,8 +1012,9 @@ export default function DiscrepanciesPage({ user }: { user: User }) {
                   />
                 </div>
                 <div className="field">
-                  <Label>Status inicial</Label>
+                  <Label htmlFor="payroll-review-status">Status inicial</Label>
                   <select
+                    id="payroll-review-status"
                     className="form-select"
                     value={reviewStatus}
                     onChange={event =>
@@ -1003,10 +1031,11 @@ export default function DiscrepanciesPage({ user }: { user: User }) {
                   </select>
                 </div>
                 <div className="field discrepancy-form-wide">
-                  <Label>
+                  <Label htmlFor="payroll-review-reason">
                     Justificativa documentada (mínimo 10 caracteres)
                   </Label>
                   <textarea
+                    id="payroll-review-reason"
                     className="form-textarea"
                     rows={2}
                     minLength={10}
@@ -1038,7 +1067,12 @@ export default function DiscrepanciesPage({ user }: { user: User }) {
             {adjustments.isError ? (
               <QueryError retry={() => adjustments.refetch()} />
             ) : (adjustments.data ?? []).length ? (
-              <div className="table-scroll">
+              <div
+                className="table-scroll"
+                role="region"
+                aria-label="Tabela de análises administrativas de folha; deslize horizontalmente para ver todas as colunas"
+                tabIndex={0}
+              >
                 <table className="data-table">
                   <thead>
                     <tr>
@@ -1141,7 +1175,12 @@ export default function DiscrepanciesPage({ user }: { user: User }) {
             {ownAndAdminSummaries.isError ? (
               <QueryError retry={() => ownAndAdminSummaries.refetch()} />
             ) : reportRows.length ? (
-              <div className="table-scroll">
+              <div
+                className="table-scroll"
+                role="region"
+                aria-label="Relatório mensal administrativo de divergências; deslize horizontalmente para ver todas as colunas"
+                tabIndex={0}
+              >
                 <table className="data-table">
                   <thead>
                     <tr>

@@ -1336,3 +1336,32 @@ Evidências em 23/11/2026: o cálculo considera todos os fechamentos finalizados
 
 ### Evidências desta continuação
 - `pnpm check` passou; `pnpm test` passou com 71 testes; `pnpm test:integration` passou com 2 testes PostgreSQL em banco local descartável; `pnpm build` passou com aviso de chunk principal maior que 500 kB. O banco descartável foi removido. Staging/produção não foram acessados. A auditoria permanece parcial até concluir itens abertos acima.
+
+
+## Simplificação transversal da interface — solicitação de 23/11/2026
+
+### [x] Navegação e visão geral mais simples
+- Reorganizar visualmente os destinos frequentes e administrativos que já existem, mantendo todas as rotas e as permissões por perfil. No celular, deixar “Novo fechamento” diretamente acessível para todos os perfis que já podem utilizá-lo; outros destinos continuam disponíveis em “Mais”. Não criar página nem remover opção.
+- Agrupar visualmente os indicadores existentes do dashboard por contexto “hoje” e “período”, manter a seção de tanques abaixo dos indicadores e destacar o estado/situação sem esconder métricas, atalhos ou avisos. Preservar os cálculos, consultas e filtros atuais.
+
+### [x] Telas operacionais e de consulta mais claras
+- Na tela de fechamento, reduzir repetição visual dos resumos, deixar a próxima ação inequívoca e aproximar avisos existentes da etapa pertinente; manter todos os dados, campos, validações, confirmações, estados, botões e cálculos. Não modificar regras de negócio do fechamento, incluindo crédito de cliente, aferição e abastecimento próprio.
+- No histórico e em divergências, agrupar filtros existentes, clarificar títulos de estado/resultado/valores, aproximar listas e ações de análise e reorganizar detalhes em blocos legíveis; preservar registros, colunas/valores, filtros, transições, permissões e ações atuais.
+- Em Estoque e Tanques, apresentar as operações existentes de forma progressiva e organizada, evitando expor formulários extensos simultaneamente; preservar todos os formulários, avisos, dados, cálculos, permissões, histórico, filtros e exportações PDF/Excel.
+
+### [x] Relatórios e administração mais legíveis
+- Em relatórios, identificar claramente o período aplicado e usar rótulos que expliquem as métricas já existentes, sem mudar fórmulas, filtros, exportações ou valores.
+- Em funcionários e usuários, eliminar títulos/textos redundantes, tornar explícitos os vínculos já registrados e agrupar visualmente dados de identidade, associação e acesso; preservar campos, validações, papéis, vínculos e status.
+- Em configurações, tornar preços e ajustes autoexplicativos e deixar claros os estados existentes de salvamento; em auditoria, organizar detalhes/valores anterior e novo para leitura rápida, sem ocultar eventos nem substituir valores originais ambíguos.
+
+### [ ] Acessibilidade e legibilidade responsivas em toda a interface
+- Associar programaticamente rótulos aos controles onde isso estiver ausente; manter indicação de foco, nomes acessíveis, navegação por teclado e áreas táteis confortáveis.
+- Melhorar a leitura de textos/cabeçalhos em telas pequenas e tornar perceptível a rolagem horizontal das tabelas onde todas as colunas continuarem necessárias; não cortar ou esconder dados essenciais.
+- Preservar a simplicidade do login, reforçando rótulos/ajuda legíveis e o tamanho do alvo do botão de mostrar senha; apresentar erros existentes de maneira acessível sem expor detalhes técnicos adicionais.
+- Validar comportamento responsivo e não regressão com checagem TypeScript, testes, build, formatação, diff limpo e inspeção do Preview; não alterar banco/schema/API e não publicar sem pedido.
+
+### Evidências da rodada — 23/11/2026
+- A navegação, o dashboard, o fechamento, o histórico, o estoque, as divergências, os relatórios e as telas administrativas receberam ajustes de apresentação/acessibilidade; a inspeção do diff não encontrou mudanças nos cálculos ou nas regras de negócio. Não foram criadas páginas/módulos nem alterados banco, schema ou API.
+- `pnpm check` passou; `pnpm test` passou com 71 testes em 16 arquivos; `pnpm build` passou com o aviso existente de chunk acima de 500 kB; Prettier nos fontes alterados e `git diff --check` passaram.
+- O Preview foi inspecionado em 1280×900 e 375×812 na tela de acesso. As telas autenticadas foram revisadas por código, mas não visualmente, pois esta rodada não usou credenciais nem dados de teste.
+- Nenhum commit, push ou publicação foi feito nesta rodada.

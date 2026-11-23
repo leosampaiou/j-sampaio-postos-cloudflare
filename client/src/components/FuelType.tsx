@@ -29,18 +29,21 @@ type FuelTypeRadioGroupProps = {
   name: string;
   defaultValue?: FuelType;
   ariaLabel: string;
+  ariaLabelledBy?: string;
 };
 
 export function FuelTypeRadioGroup({
   name,
   defaultValue = "gasolina_comum",
   ariaLabel,
+  ariaLabelledBy,
 }: FuelTypeRadioGroupProps) {
   return (
     <div
       className="fuel-type-radio-group"
       role="radiogroup"
-      aria-label={ariaLabel}
+      aria-label={ariaLabelledBy ? undefined : ariaLabel}
+      aria-labelledby={ariaLabelledBy}
     >
       {FUEL_TYPE_OPTIONS.map(option => (
         <label className="fuel-type-choice" key={option.value}>

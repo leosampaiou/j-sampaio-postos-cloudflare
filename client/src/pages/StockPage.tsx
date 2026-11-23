@@ -720,8 +720,9 @@ export default function StockPage({ user }: { user: User }) {
             </summary>
             <form className="stock-form-grid" onSubmit={submitTank}>
               <div className="field">
-                <Label>Nome / identificação</Label>
+                <Label htmlFor="tank-name">Nome / identificação</Label>
                 <Input
+                  id="tank-name"
                   name="name"
                   required
                   minLength={2}
@@ -730,8 +731,9 @@ export default function StockPage({ user }: { user: User }) {
                 />
               </div>
               <div className="field">
-                <Label>Código único</Label>
+                <Label htmlFor="tank-code">Código único</Label>
                 <Input
+                  id="tank-code"
                   name="code"
                   required
                   pattern="[A-Za-z0-9._-]+"
@@ -740,19 +742,23 @@ export default function StockPage({ user }: { user: User }) {
                 />
               </div>
               <div className="field">
-                <Label>Combustível do tanque</Label>
+                <Label id="tank-fuel-type-label">Combustível do tanque</Label>
                 <FuelTypeRadioGroup
                   name="fuelType"
                   defaultValue="gasolina_comum"
                   ariaLabel="Combustível do tanque"
+                  ariaLabelledBy="tank-fuel-type-label"
                 />
                 <small>
                   O tanque só poderá receber bicos do mesmo combustível.
                 </small>
               </div>
               <div className="field">
-                <Label>Capacidade total (L)</Label>
+                <Label htmlFor="tank-capacity-total">
+                  Capacidade total (L)
+                </Label>
                 <Input
+                  id="tank-capacity-total"
                   name="capacityTotalLiters"
                   type="number"
                   inputMode="decimal"
@@ -762,8 +768,11 @@ export default function StockPage({ user }: { user: User }) {
                 />
               </div>
               <div className="field">
-                <Label>Capacidade operacional (L)</Label>
+                <Label htmlFor="tank-capacity-operational">
+                  Capacidade operacional (L)
+                </Label>
                 <Input
+                  id="tank-capacity-operational"
                   name="operationalCapacityLiters"
                   type="number"
                   inputMode="decimal"
@@ -773,8 +782,9 @@ export default function StockPage({ user }: { user: User }) {
                 />
               </div>
               <div className="field">
-                <Label>Estoque mínimo (L)</Label>
+                <Label htmlFor="tank-minimum-stock">Estoque mínimo (L)</Label>
                 <Input
+                  id="tank-minimum-stock"
                   name="minimumStockLiters"
                   type="number"
                   inputMode="decimal"
@@ -785,8 +795,9 @@ export default function StockPage({ user }: { user: User }) {
                 />
               </div>
               <div className="field">
-                <Label>Estoque inicial (L)</Label>
+                <Label htmlFor="tank-initial-stock">Estoque inicial (L)</Label>
                 <Input
+                  id="tank-initial-stock"
                   name="initialStockLiters"
                   type="number"
                   inputMode="decimal"
@@ -797,8 +808,11 @@ export default function StockPage({ user }: { user: User }) {
                 />
               </div>
               <div className="field">
-                <Label>Data inicial do estoque</Label>
+                <Label htmlFor="tank-stock-start">
+                  Data inicial do estoque
+                </Label>
                 <Input
+                  id="tank-stock-start"
                   name="stockStartDate"
                   type="date"
                   defaultValue={today()}
@@ -806,8 +820,11 @@ export default function StockPage({ user }: { user: User }) {
                 />
               </div>
               <div className="field">
-                <Label>Prazo de entrega (dias)</Label>
+                <Label htmlFor="tank-replenishment-lead">
+                  Prazo de entrega (dias)
+                </Label>
                 <Input
+                  id="tank-replenishment-lead"
                   name="replenishmentLeadDays"
                   type="number"
                   min="0"
@@ -817,8 +834,11 @@ export default function StockPage({ user }: { user: User }) {
                 />
               </div>
               <div className="field">
-                <Label>Reserva de segurança (L)</Label>
+                <Label htmlFor="tank-safety-reserve">
+                  Reserva de segurança (L)
+                </Label>
                 <Input
+                  id="tank-safety-reserve"
                   name="safetyReserveLiters"
                   type="number"
                   inputMode="decimal"
@@ -829,8 +849,11 @@ export default function StockPage({ user }: { user: User }) {
                 />
               </div>
               <div className="field">
-                <Label>Faixa próximo do mínimo (%)</Label>
+                <Label htmlFor="tank-near-minimum">
+                  Faixa próximo do mínimo (%)
+                </Label>
                 <Input
+                  id="tank-near-minimum"
                   name="nearMinimumPercent"
                   type="number"
                   min="0"
@@ -840,8 +863,11 @@ export default function StockPage({ user }: { user: User }) {
                 />
               </div>
               <div className="field">
-                <Label>Autonomia em atenção (dias)</Label>
+                <Label htmlFor="tank-autonomy-warning">
+                  Autonomia em atenção (dias)
+                </Label>
                 <Input
+                  id="tank-autonomy-warning"
                   name="autonomyWarningDays"
                   type="number"
                   min="1"
@@ -851,8 +877,11 @@ export default function StockPage({ user }: { user: User }) {
                 />
               </div>
               <div className="field">
-                <Label>Autonomia crítica (dias)</Label>
+                <Label htmlFor="tank-autonomy-critical">
+                  Autonomia crítica (dias)
+                </Label>
                 <Input
+                  id="tank-autonomy-critical"
                   name="autonomyCriticalDays"
                   type="number"
                   min="1"
@@ -862,8 +891,11 @@ export default function StockPage({ user }: { user: User }) {
                 />
               </div>
               <div className="field">
-                <Label>Alerta divergência física (%)</Label>
+                <Label htmlFor="tank-discrepancy-alert">
+                  Alerta divergência física (%)
+                </Label>
                 <Input
+                  id="tank-discrepancy-alert"
                   name="discrepancyAlertPercent"
                   type="number"
                   min="0"
@@ -874,8 +906,11 @@ export default function StockPage({ user }: { user: User }) {
                 />
               </div>
               <div className="field">
-                <Label>Sem atualização recente (dias)</Label>
+                <Label htmlFor="tank-stale-days">
+                  Sem atualização recente (dias)
+                </Label>
                 <Input
+                  id="tank-stale-days"
                   name="staleAfterDays"
                   type="number"
                   min="1"
@@ -1146,7 +1181,14 @@ export default function StockPage({ user }: { user: User }) {
                             {assigned?.name ?? "sem tanque vinculado"}
                           </small>
                         </div>
+                        <label
+                          className="sr-only"
+                          htmlFor={`pump-tank-${pump.id}`}
+                        >
+                          Tanque do bico {pump.number}
+                        </label>
                         <select
+                          id={`pump-tank-${pump.id}`}
                           className="form-select"
                           value={assigned?.id ?? ""}
                           onChange={async event => {
@@ -1216,8 +1258,9 @@ export default function StockPage({ user }: { user: User }) {
             </div>
             <form className="stock-form-grid" onSubmit={submitReceipt}>
               <div className="field">
-                <Label>Tanque de destino</Label>
+                <Label htmlFor="receipt-tank">Tanque de destino</Label>
                 <select
+                  id="receipt-tank"
                   className="form-select"
                   name="tankId"
                   required
@@ -1240,16 +1283,27 @@ export default function StockPage({ user }: { user: User }) {
                 )}
               </div>
               <div className="field">
-                <Label>Fornecedor</Label>
-                <Input name="supplier" required minLength={2} maxLength={180} />
-              </div>
-              <div className="field">
-                <Label>Número da nota fiscal</Label>
-                <Input name="invoiceNumber" maxLength={80} />
-              </div>
-              <div className="field">
-                <Label>Data e horário</Label>
+                <Label htmlFor="receipt-supplier">Fornecedor</Label>
                 <Input
+                  id="receipt-supplier"
+                  name="supplier"
+                  required
+                  minLength={2}
+                  maxLength={180}
+                />
+              </div>
+              <div className="field">
+                <Label htmlFor="receipt-invoice">Número da nota fiscal</Label>
+                <Input
+                  id="receipt-invoice"
+                  name="invoiceNumber"
+                  maxLength={80}
+                />
+              </div>
+              <div className="field">
+                <Label htmlFor="receipt-date-time">Data e horário</Label>
+                <Input
+                  id="receipt-date-time"
                   name="occurredAt"
                   type="datetime-local"
                   defaultValue={localDateTime()}
@@ -1257,8 +1311,11 @@ export default function StockPage({ user }: { user: User }) {
                 />
               </div>
               <div className="field">
-                <Label>Quantidade recebida (L)</Label>
+                <Label htmlFor="receipt-quantity">
+                  Quantidade recebida (L)
+                </Label>
                 <Input
+                  id="receipt-quantity"
                   name="quantityLiters"
                   type="number"
                   inputMode="decimal"
@@ -1268,8 +1325,11 @@ export default function StockPage({ user }: { user: User }) {
                 />
               </div>
               <div className="field">
-                <Label>Valor total (R$)</Label>
+                <Label htmlFor="receipt-acquisition-value">
+                  Valor total (R$)
+                </Label>
                 <Input
+                  id="receipt-acquisition-value"
                   name="acquisitionValue"
                   inputMode="decimal"
                   placeholder="0,00"
@@ -1277,16 +1337,20 @@ export default function StockPage({ user }: { user: User }) {
                 />
               </div>
               <div className="field">
-                <Label>Comprovante (PDF/JPG/PNG, até 10 MB)</Label>
+                <Label htmlFor="receipt-document">
+                  Comprovante (PDF/JPG/PNG, até 10 MB)
+                </Label>
                 <Input
+                  id="receipt-document"
                   name="document"
                   type="file"
                   accept="application/pdf,image/jpeg,image/png"
                 />
               </div>
               <div className="field stock-form-wide">
-                <Label>Observações</Label>
+                <Label htmlFor="receipt-notes">Observações</Label>
                 <textarea
+                  id="receipt-notes"
                   className="form-textarea"
                   name="notes"
                   maxLength={2000}
@@ -1324,8 +1388,9 @@ export default function StockPage({ user }: { user: User }) {
             </div>
             <form className="stock-form-grid" onSubmit={submitMeasurement}>
               <div className="field">
-                <Label>Tanque</Label>
+                <Label htmlFor="measurement-tank">Tanque</Label>
                 <select
+                  id="measurement-tank"
                   className="form-select"
                   name="tankId"
                   required
@@ -1350,8 +1415,9 @@ export default function StockPage({ user }: { user: User }) {
                 )}
               </div>
               <div className="field">
-                <Label>Volume físico (L)</Label>
+                <Label htmlFor="measurement-volume">Volume físico (L)</Label>
                 <Input
+                  id="measurement-volume"
                   name="physicalLiters"
                   type="number"
                   inputMode="decimal"
@@ -1361,8 +1427,9 @@ export default function StockPage({ user }: { user: User }) {
                 />
               </div>
               <div className="field">
-                <Label>Data e horário</Label>
+                <Label htmlFor="measurement-date-time">Data e horário</Label>
                 <Input
+                  id="measurement-date-time"
                   name="measuredAt"
                   type="datetime-local"
                   defaultValue={localDateTime()}
@@ -1370,8 +1437,8 @@ export default function StockPage({ user }: { user: User }) {
                 />
               </div>
               <div className="field">
-                <Label>Observações</Label>
-                <Input name="notes" maxLength={2000} />
+                <Label htmlFor="measurement-notes">Observações</Label>
+                <Input id="measurement-notes" name="notes" maxLength={2000} />
               </div>
               <div className="stock-form-actions">
                 <Button
@@ -1400,8 +1467,9 @@ export default function StockPage({ user }: { user: User }) {
             </div>
             <form className="stock-form-grid" onSubmit={submitWriteoff}>
               <div className="field">
-                <Label>Tanque</Label>
+                <Label htmlFor="writeoff-tank">Tanque</Label>
                 <select
+                  id="writeoff-tank"
                   className="form-select"
                   name="tankId"
                   required
@@ -1424,8 +1492,9 @@ export default function StockPage({ user }: { user: User }) {
                 )}
               </div>
               <div className="field">
-                <Label>Quantidade (L)</Label>
+                <Label htmlFor="writeoff-quantity">Quantidade (L)</Label>
                 <Input
+                  id="writeoff-quantity"
                   name="quantityLiters"
                   type="number"
                   inputMode="decimal"
@@ -1435,8 +1504,9 @@ export default function StockPage({ user }: { user: User }) {
                 />
               </div>
               <div className="field">
-                <Label>Data e horário</Label>
+                <Label htmlFor="writeoff-date-time">Data e horário</Label>
                 <Input
+                  id="writeoff-date-time"
                   name="occurredAt"
                   type="datetime-local"
                   defaultValue={localDateTime()}
@@ -1444,8 +1514,14 @@ export default function StockPage({ user }: { user: User }) {
                 />
               </div>
               <div className="field">
-                <Label>Motivo documentado</Label>
-                <Input name="reason" minLength={5} maxLength={1000} required />
+                <Label htmlFor="writeoff-reason">Motivo documentado</Label>
+                <Input
+                  id="writeoff-reason"
+                  name="reason"
+                  minLength={5}
+                  maxLength={1000}
+                  required
+                />
               </div>
               <div className="stock-form-actions">
                 <Button
@@ -1496,24 +1572,27 @@ export default function StockPage({ user }: { user: User }) {
           </div>
           <div className="filter-strip stock-filter-strip">
             <div className="field">
-              <Label>De</Label>
+              <Label htmlFor="stock-movement-from">De</Label>
               <Input
+                id="stock-movement-from"
                 type="date"
                 value={filterFrom}
                 onChange={event => setFilterFrom(event.target.value)}
               />
             </div>
             <div className="field">
-              <Label>Até</Label>
+              <Label htmlFor="stock-movement-to">Até</Label>
               <Input
+                id="stock-movement-to"
                 type="date"
                 value={filterTo}
                 onChange={event => setFilterTo(event.target.value)}
               />
             </div>
             <div className="field">
-              <Label>Tanque</Label>
+              <Label htmlFor="stock-movement-tank">Tanque</Label>
               <select
+                id="stock-movement-tank"
                 className="form-select"
                 value={filterTank}
                 onChange={event => setFilterTank(event.target.value)}
@@ -1533,8 +1612,9 @@ export default function StockPage({ user }: { user: User }) {
               onChange={setFilterFuel}
             />
             <div className="field">
-              <Label>Movimentação</Label>
+              <Label htmlFor="stock-movement-type">Movimentação</Label>
               <select
+                id="stock-movement-type"
                 className="form-select"
                 value={filterType}
                 onChange={event => setFilterType(event.target.value)}
@@ -1553,7 +1633,12 @@ export default function StockPage({ user }: { user: User }) {
           ) : movements.isLoading ? (
             <div className="table-loading">Carregando movimentações…</div>
           ) : (movements.data ?? []).length ? (
-            <div className="table-scroll">
+            <div
+              className="table-scroll"
+              role="region"
+              aria-label="Tabela de movimentações do estoque; deslize horizontalmente para ver todas as colunas"
+              tabIndex={0}
+            >
               <table className="data-table">
                 <thead>
                   <tr>
@@ -1668,7 +1753,12 @@ export default function StockPage({ user }: { user: User }) {
           ) : measurements.isLoading ? (
             <div className="table-loading">Carregando medições…</div>
           ) : (measurements.data ?? []).length ? (
-            <div className="table-scroll">
+            <div
+              className="table-scroll"
+              role="region"
+              aria-label="Tabela de medições físicas; deslize horizontalmente para ver todas as colunas"
+              tabIndex={0}
+            >
               <table className="data-table">
                 <thead>
                   <tr>

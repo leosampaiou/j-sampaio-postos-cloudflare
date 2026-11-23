@@ -256,6 +256,49 @@ export default function Home({
     };
   }, [user.id, offlineSync.mutateAsync, utils]);
   const permitted = nav.filter(n => n.roles.includes(user.role));
+  const primaryNav = permitted.filter(item =>
+    ["/", "/fechamento/novo", "/historico", "/divergencias"].includes(item.href)
+  );
+  const managementNav = permitted.filter(item => !primaryNav.includes(item));
+  const renderNavItems = (items: typeof permitted) =>
+    items.map(item => {
+      const Icon = item.icon;
+      const active =
+        location === item.href ||
+        (item.href === "/fechamento/novo" &&
+          location.startsWith("/fechamento"));
+      return (
+        <Link
+          key={item.href}
+          href={item.href}
+          className={`nav-link ${active ? "active" : ""}`}
+          aria-current={active ? "page" : undefined}
+          onClick={() => setMobileOpen(false)}
+        >
+          <Icon size={18} />
+          <span>{item.label}</span>
+          {active && <span className="active-mark" />}
+        </Link>
+      );
+    });
+  const mobileNavItems =
+    user.role === "frentista"
+      ? [
+          { href: "/", label: "Início", icon: HomeIcon },
+          { href: "/historico", label: "Fechamentos", icon: History },
+          { href: "/fechamento/novo", label: "Novo", icon: Plus },
+          { href: "/divergencias", label: "Minhas", icon: CircleAlert },
+        ]
+      : [
+          { href: "/", label: "Início", icon: HomeIcon },
+          { href: "/historico", label: "Fechamentos", icon: History },
+          { href: "/fechamento/novo", label: "Novo", icon: Plus },
+          { href: "/estoque", label: "Estoque", icon: Fuel },
+        ];
+  const mobileNavHrefs = new Set(mobileNavItems.map(item => item.href));
+  const moreNavActive = permitted.some(
+    item => item.href === location && !mobileNavHrefs.has(item.href)
+  );
   const pageTitle =
     permitted.find(n => n.href === location)?.label ??
     (location.startsWith("/fechamento/editar")
@@ -309,28 +352,14 @@ export default function Home({
           {settings.data?.unit?.tradeName ?? "J SAMPAIO POSTOS"}
           <ChevronDown size={14} />
         </div>
-        <span className="nav-caption">MENU PRINCIPAL</span>
-        <nav className="side-nav">
-          {permitted.map(item => {
-            const Icon = item.icon;
-            const active =
-              location === item.href ||
-              (item.href === "/fechamento/novo" &&
-                location.startsWith("/fechamento"));
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`nav-link ${active ? "active" : ""}`}
-                onClick={() => setMobileOpen(false)}
-              >
-                <Icon size={18} />
-                <span>{item.label}</span>
-                {active && <span className="active-mark" />}
-              </Link>
-            );
-          })}
-        </nav>
+        <span className="nav-caption">ROTINA</span>
+        <nav className="side-nav">{renderNavItems(primaryNav)}</nav>
+        {managementNav.length > 0 && (
+          <>
+            <span className="nav-caption nav-caption-secondary">GESTÃO</span>
+            <nav className="side-nav">{renderNavItems(managementNav)}</nav>
+          </>
+        )}
         <div className="sidebar-bottom">
           <div className={`connection-chip ${online ? "online" : "offline"}`}>
             <span />
@@ -357,6 +386,7 @@ export default function Home({
             <button
               className="icon-button logout-button"
               title="Sair"
+              aria-label="Sair da conta"
               onClick={() => {
                 if (window.confirm("Deseja realmente encerrar sua sessão?"))
                   void onLogout().catch(() =>
@@ -397,7 +427,11 @@ export default function Home({
               <i />
               {online ? "Online" : "Offline"}
             </span>
-            <button className="icon-button" title="Notificações">
+            <button
+              className="icon-button"
+              title="Notificações"
+              aria-label="Notificações"
+            >
               <Bell size={18} />
             </button>
             <div className="topbar-date">
@@ -412,20 +446,7 @@ export default function Home({
         <div className="page-content">{content}</div>
       </main>
       <nav className="mobile-bottom-nav">
-        {(user.role === "frentista"
-          ? [
-              { href: "/", label: "Início", icon: HomeIcon },
-              { href: "/historico", label: "Fechamentos", icon: History },
-              { href: "/fechamento/novo", label: "Novo", icon: Plus },
-              { href: "/divergencias", label: "Minhas", icon: CircleAlert },
-            ]
-          : [
-              { href: "/", label: "Início", icon: HomeIcon },
-              { href: "/historico", label: "Fechamentos", icon: History },
-              { href: "/estoque", label: "Estoque", icon: Fuel },
-              { href: "/relatorios", label: "Relatórios", icon: FileBarChart2 },
-            ]
-        ).map(item => {
+        {mobileNavItems.map(item => {
           const Icon = item.icon;
           const active =
             location === item.href ||
@@ -435,6 +456,7 @@ export default function Home({
               key={item.href}
               href={item.href}
               className={active ? "selected" : ""}
+              aria-current={active ? "page" : undefined}
               onClick={() => setMoreOpen(false)}
             >
               <Icon size={19} />
@@ -444,23 +466,19 @@ export default function Home({
         })}
         <button
           type="button"
-          className={moreOpen ? "selected" : ""}
+          className={moreOpen || moreNavActive ? "selected" : ""}
           aria-expanded={moreOpen}
+          aria-controls="mobile-more-menu"
+          aria-label={moreOpen ? "Fechar mais opções" : "Abrir mais opções"}
           onClick={() => setMoreOpen(value => !value)}
         >
           <MoreHorizontal size={19} />
           <span>Mais</span>
         </button>
         {moreOpen && (
-          <div className="mobile-more-menu" role="menu">
+          <div id="mobile-more-menu" className="mobile-more-menu" role="menu">
             {permitted
-              .filter(
-                item =>
-                  !["/", "/historico", "/estoque", "/relatorios"].includes(
-                    item.href
-                  ) &&
-                  !(user.role === "frentista" && item.href === "/divergencias")
-              )
+              .filter(item => !mobileNavHrefs.has(item.href))
               .map(item => {
                 const Icon = item.icon;
                 return (
@@ -475,16 +493,6 @@ export default function Home({
                   </Link>
                 );
               })}
-            {user.role === "frentista" && (
-              <Link
-                href="/divergencias"
-                role="menuitem"
-                onClick={() => setMoreOpen(false)}
-              >
-                <CircleAlert size={17} />
-                Minhas divergências
-              </Link>
-            )}
           </div>
         )}
       </nav>
@@ -727,7 +735,11 @@ function Dashboard({ user }: { user: User }) {
         description="Acompanhe o movimento do posto e a situação dos fechamentos."
         action={
           <div className="heading-actions">
+            <Label htmlFor="dashboard-range" className="sr-only">
+              Período do dashboard
+            </Label>
             <select
+              id="dashboard-range"
               className="select-control"
               value={range}
               onChange={e => setRange(e.target.value)}
@@ -743,6 +755,7 @@ function Dashboard({ user }: { user: User }) {
             <button
               className="icon-button refresh-button"
               title="Atualizar"
+              aria-label="Atualizar indicadores"
               onClick={() => analytics.refetch()}
               disabled={!validCustomRange}
             >
@@ -798,41 +811,61 @@ function Dashboard({ user }: { user: User }) {
           <FileBarChart2 size={16} /> Relatórios
         </Link>
       </div>
-      <div className="stats-grid">
-        <StatCard
-          label="Faturamento hoje"
-          value={displayMoney(totals?.todaySalesCents)}
-          icon={Banknote}
-          tone="navy"
-        />
-        <StatCard
-          label="Faturamento no período"
-          value={displayMoney(totals?.monthSalesCents)}
-          sub={periodLabel}
-          icon={Wallet}
-          tone="yellow"
-        />
-        <StatCard
-          label="Litros vendidos hoje"
-          value={displayLiters(totals?.todayLiters)}
-          icon={Fuel}
-          tone="blue"
-        />
-        <StatCard
-          label="Litros no período"
-          value={displayLiters(totals?.monthLiters)}
-          sub={periodLabel}
-          icon={Fuel}
-          tone="blue"
-        />
-        <StatCard
-          label="Saldo de caixa"
-          value={metricsUnavailable ? "—" : brl(balance)}
-          sub={balanceStatus}
-          icon={Wallet}
-          tone={balanceTone}
-          valueClassName={balanceValueClassName}
-        />
+      <div className="dashboard-metric-groups">
+        <section
+          className="dashboard-metric-group"
+          aria-labelledby="metrics-today-title"
+        >
+          <div className="dashboard-metric-heading">
+            <h2 id="metrics-today-title">Hoje</h2>
+            <span>{dateLabel(today)}</span>
+          </div>
+          <div className="stats-grid">
+            <StatCard
+              label="Faturamento hoje"
+              value={displayMoney(totals?.todaySalesCents)}
+              icon={Banknote}
+              tone="navy"
+            />
+            <StatCard
+              label="Litros vendidos hoje"
+              value={displayLiters(totals?.todayLiters)}
+              icon={Fuel}
+              tone="blue"
+            />
+          </div>
+        </section>
+        <section
+          className="dashboard-metric-group"
+          aria-labelledby="metrics-period-title"
+        >
+          <div className="dashboard-metric-heading">
+            <h2 id="metrics-period-title">Período selecionado</h2>
+            <span>{periodLabel}</span>
+          </div>
+          <div className="stats-grid">
+            <StatCard
+              label="Faturamento no período"
+              value={displayMoney(totals?.monthSalesCents)}
+              icon={Wallet}
+              tone="yellow"
+            />
+            <StatCard
+              label="Litros no período"
+              value={displayLiters(totals?.monthLiters)}
+              icon={Fuel}
+              tone="blue"
+            />
+            <StatCard
+              label="Saldo de caixa"
+              value={metricsUnavailable ? "—" : brl(balance)}
+              sub={balanceStatus}
+              icon={Wallet}
+              tone={balanceTone}
+              valueClassName={balanceValueClassName}
+            />
+          </div>
+        </section>
       </div>
       <TankStockOverview />
       <div className="dashboard-grid">
@@ -1479,6 +1512,10 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
           (label, index) => (
             <button
               key={label}
+              type="button"
+              aria-current={step === index + 1 ? "step" : undefined}
+              aria-label={`${step > index + 1 ? "Etapa concluída" : step === index + 1 ? "Etapa atual" : "Etapa"}: ${label}`}
+              disabled={index + 1 >= step}
               className={`wizard-step ${step === index + 1 ? "current" : step > index + 1 ? "complete" : ""}`}
               onClick={() => index + 1 < step && setStep(index + 1)}
             >
@@ -1488,7 +1525,9 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
           )
         )}
       </div>
-      <div className="closure-layout">
+      <div
+        className={`closure-layout ${step <= 2 ? "" : "closure-layout-focused"}`}
+      >
         <div className="closure-main panel">
           {step === 1 && (
             <>
@@ -1501,8 +1540,9 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
               </div>
               <div className="form-grid">
                 <div className="field">
-                  <Label>Data</Label>
+                  <Label htmlFor="closure-date">Data</Label>
                   <Input
+                    id="closure-date"
                     type="date"
                     value={closureDate}
                     onChange={e => setClosureDate(e.target.value)}
@@ -1510,8 +1550,9 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
                   />
                 </div>
                 <div className="field">
-                  <Label>Turno</Label>
+                  <Label htmlFor="closure-shift">Turno</Label>
                   <select
+                    id="closure-shift"
                     className="form-select"
                     value={shift}
                     onChange={e => setShift(e.target.value)}
@@ -1522,8 +1563,14 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
                   </select>
                 </div>
                 <div className="field participant-editor">
-                  <Label>Frentistas participantes</Label>
-                  <div className="participant-checkbox-list">
+                  <Label id="closure-participants-label">
+                    Frentistas participantes
+                  </Label>
+                  <div
+                    className="participant-checkbox-list"
+                    role="group"
+                    aria-labelledby="closure-participants-label"
+                  >
                     {(participantOptions.data ?? []).map(person => (
                       <label className="participant-checkbox" key={person.id}>
                         <input
@@ -1605,8 +1652,11 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
                   )}
                 </div>
                 <div className="field">
-                  <Label>Responsável pelo fechamento</Label>
+                  <Label htmlFor="closure-responsible">
+                    Responsável pelo fechamento
+                  </Label>
                   <Input
+                    id="closure-responsible"
                     value={responsibleName}
                     onChange={e => setResponsibleName(e.target.value)}
                     maxLength={160}
@@ -1636,7 +1686,12 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
                   </p>
                 </div>
               </div>
-              <div className="nozzle-table-wrap">
+              <div
+                className="nozzle-table-wrap"
+                role="region"
+                aria-label="Tabela de leituras dos bicos; deslize horizontalmente para ver todas as colunas"
+                tabIndex={0}
+              >
                 <table className="data-table nozzle-table">
                   <thead>
                     <tr>
@@ -1795,8 +1850,11 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
               </div>
               {closureId && editing.data?.status === "reaberto" && (
                 <div className="field">
-                  <Label>Justificativa obrigatória da correção</Label>
+                  <Label htmlFor="closure-change-reason">
+                    Justificativa obrigatória da correção
+                  </Label>
                   <textarea
+                    id="closure-change-reason"
                     className="form-textarea"
                     value={changeReason}
                     onChange={e => setChangeReason(e.target.value)}
@@ -1809,8 +1867,11 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
                 </div>
               )}
               <div className="field">
-                <Label>Observações, ocorrências e justificativas</Label>
+                <Label htmlFor="closure-notes">
+                  Observações, ocorrências e justificativas
+                </Label>
                 <textarea
+                  id="closure-notes"
                   className="form-textarea"
                   value={notes}
                   onChange={e => setNotes(e.target.value)}
@@ -1932,7 +1993,9 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
                   className="primary-button"
                   onClick={() => setStep(s => Math.min(4, s + 1))}
                 >
-                  Continuar <ArrowRight size={16} />
+                  Continuar para{" "}
+                  {(["Leituras", "Recebimentos", "Revisão"] as const)[step - 1]}{" "}
+                  <ArrowRight size={16} />
                 </Button>
               ) : (
                 <Button
@@ -1954,56 +2017,58 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
             </div>
           </div>
         </div>
-        <aside className="closure-summary">
-          <div className="panel summary-card">
-            <span className="eyebrow">RESUMO EM TEMPO REAL</span>
-            <h3>{dateLabel(closureDate)}</h3>
-            <div className="summary-shift">
-              <Clock3 size={15} />
-              {shiftLabel(shift)}
-            </div>
-            <div className="summary-separator" />
-            <div className="summary-value">
-              <span>Vendas calculadas</span>
-              <strong>{brl(salesCents)}</strong>
-            </div>
-            <div className="summary-value">
-              <span>Total recebido</span>
-              <strong>{brl(receivedCents)}</strong>
-            </div>
-            <div className="summary-value">
-              <span>Diferença</span>
-              <strong
-                className={
-                  difference === 0
-                    ? "text-success"
-                    : difference > 0
-                      ? "text-warning"
-                      : "text-danger"
-                }
+        {step <= 2 && (
+          <aside className="closure-summary">
+            <div className="panel summary-card">
+              <span className="eyebrow">RESUMO EM TEMPO REAL</span>
+              <h3>{dateLabel(closureDate)}</h3>
+              <div className="summary-shift">
+                <Clock3 size={15} />
+                {shiftLabel(shift)}
+              </div>
+              <div className="summary-separator" />
+              <div className="summary-value">
+                <span>Vendas calculadas</span>
+                <strong>{brl(salesCents)}</strong>
+              </div>
+              <div className="summary-value">
+                <span>Total recebido</span>
+                <strong>{brl(receivedCents)}</strong>
+              </div>
+              <div className="summary-value">
+                <span>Diferença</span>
+                <strong
+                  className={
+                    difference === 0
+                      ? "text-success"
+                      : difference > 0
+                        ? "text-warning"
+                        : "text-danger"
+                  }
+                >
+                  {difference > 0 ? "+" : ""}
+                  {brl(difference)}
+                </strong>
+              </div>
+              <div
+                className={`summary-result ${difference === 0 ? "success" : difference > 0 ? "warning" : "danger"}`}
               >
-                {difference > 0 ? "+" : ""}
-                {brl(difference)}
-              </strong>
+                <span />
+                {resultLabel(
+                  difference === 0
+                    ? "conferido"
+                    : difference > 0
+                      ? "sobra"
+                      : "falta"
+                )}
+              </div>
+              <small className="summary-footnote">
+                Rascunhos só são considerados gravados após confirmação do
+                servidor.
+              </small>
             </div>
-            <div
-              className={`summary-result ${difference === 0 ? "success" : difference > 0 ? "warning" : "danger"}`}
-            >
-              <span />
-              {resultLabel(
-                difference === 0
-                  ? "conferido"
-                  : difference > 0
-                    ? "sobra"
-                    : "falta"
-              )}
-            </div>
-            <small className="summary-footnote">
-              Rascunhos só são considerados gravados após confirmação do
-              servidor.
-            </small>
-          </div>
-        </aside>
+          </aside>
+        )}
       </div>
     </>
   );
@@ -2052,6 +2117,7 @@ function ClosureTable({
           <div className="search-field">
             <Search size={16} />
             <Input
+              aria-label="Buscar fechamentos por data, frentista ou responsável"
               placeholder="Buscar por data, frentista ou responsável"
               value={search}
               onChange={e => setSearch(e.target.value)}
@@ -2080,7 +2146,12 @@ function ClosureTable({
       ) : loading ? (
         <div className="table-loading">Carregando fechamentos…</div>
       ) : filtered.length ? (
-        <div className="table-scroll">
+        <div
+          className="table-scroll"
+          role="region"
+          aria-label="Tabela de fechamentos; deslize horizontalmente para ver todas as colunas"
+          tabIndex={0}
+        >
           <table className="data-table">
             <thead>
               <tr>
@@ -2224,16 +2295,18 @@ function HistoryPage({ user }: { user: User }) {
       />
       <div className="filter-strip">
         <div className="field">
-          <Label>De</Label>
+          <Label htmlFor="history-from">De</Label>
           <Input
+            id="history-from"
             type="date"
             value={from}
             onChange={event => setFrom(event.target.value)}
           />
         </div>
         <div className="field">
-          <Label>Até</Label>
+          <Label htmlFor="history-to">Até</Label>
           <Input
+            id="history-to"
             type="date"
             value={to}
             onChange={event => setTo(event.target.value)}
@@ -2248,7 +2321,7 @@ function HistoryPage({ user }: { user: User }) {
         >
           Limpar filtros
         </Button>
-        <span className="filter-count">
+        <span className="filter-count" aria-live="polite">
           {query.isError ? "—" : rows.length} registros
         </span>
       </div>
@@ -2413,7 +2486,11 @@ function DetailModal({
             <span className="eyebrow">DETALHES DO TURNO</span>
             <h2>Fechamento</h2>
           </div>
-          <button className="icon-button" onClick={onClose}>
+          <button
+            className="icon-button"
+            aria-label="Fechar detalhes do fechamento"
+            onClick={onClose}
+          >
             <X size={19} />
           </button>
         </div>
@@ -2445,7 +2522,12 @@ function DetailModal({
                   Status<strong>{statusLabel(closure.status)}</strong>
                 </span>
               </div>
-              <div className="table-scroll">
+              <div
+                className="table-scroll"
+                role="region"
+                aria-label="Tabela de detalhes do fechamento; deslize horizontalmente para ver todas as colunas"
+                tabIndex={0}
+              >
                 <table className="data-table">
                   <thead>
                     <tr>
@@ -2760,16 +2842,18 @@ function ReportsPage() {
       />
       <div className="filter-strip">
         <div className="field">
-          <Label>De</Label>
+          <Label htmlFor="report-from">De</Label>
           <Input
+            id="report-from"
             type="date"
             value={from}
             onChange={event => setFrom(event.target.value)}
           />
         </div>
         <div className="field">
-          <Label>Até</Label>
+          <Label htmlFor="report-to">Até</Label>
           <Input
+            id="report-to"
             type="date"
             value={to}
             onChange={event => setTo(event.target.value)}
@@ -2782,6 +2866,16 @@ function ReportsPage() {
               ? "—"
               : `${completed.length} fechamentos finalizados`}
         </span>
+        <p className="active-filter-summary" role="status" aria-live="polite">
+          Período aplicado:{" "}
+          {from && to
+            ? `de ${dateLabel(from)} a ${dateLabel(to)}`
+            : from
+              ? `a partir de ${dateLabel(from)}`
+              : to
+                ? `até ${dateLabel(to)}`
+                : "todos os períodos"}
+        </p>
       </div>
       {query.isError && (
         <QueryError
@@ -2826,7 +2920,12 @@ function ReportsPage() {
               : "Resumo indisponível por falha na consulta."}
           </div>
         ) : (
-          <div className="table-scroll">
+          <div
+            className="table-scroll"
+            role="region"
+            aria-label="Resumo por turno; deslize horizontalmente para ver todas as colunas"
+            tabIndex={0}
+          >
             <table className="data-table">
               <thead>
                 <tr>
@@ -2937,13 +3036,17 @@ function EmployeesPage() {
             if (name.trim()) create.mutate({ fullName: name });
           }}
         >
-          <Input
-            placeholder="Nome completo"
-            value={name}
-            onChange={event => setName(event.target.value)}
-            required
-            minLength={2}
-          />
+          <div className="field inline-create-field">
+            <Label htmlFor="employee-name">Nome completo</Label>
+            <Input
+              id="employee-name"
+              placeholder="Nome completo"
+              value={name}
+              onChange={event => setName(event.target.value)}
+              required
+              minLength={2}
+            />
+          </div>
           <Button className="primary-button" disabled={create.isPending}>
             <Plus size={16} /> Cadastrar
           </Button>
@@ -2956,7 +3059,12 @@ function EmployeesPage() {
         ) : query.isError ? (
           <QueryError retry={() => query.refetch()} />
         ) : query.data?.length ? (
-          <div className="table-scroll">
+          <div
+            className="table-scroll"
+            role="region"
+            aria-label="Tabela de funcionários; deslize horizontalmente para ver todas as colunas"
+            tabIndex={0}
+          >
             <table className="data-table">
               <thead>
                 <tr>
@@ -3075,8 +3183,9 @@ function UsersPage() {
           }}
         >
           <div className="field">
-            <Label>Nome completo</Label>
+            <Label htmlFor="user-full-name">Nome completo</Label>
             <Input
+              id="user-full-name"
               required
               value={form.fullName}
               onChange={event =>
@@ -3085,8 +3194,9 @@ function UsersPage() {
             />
           </div>
           <div className="field">
-            <Label>Nome de usuário</Label>
+            <Label htmlFor="user-username">Nome de usuário</Label>
             <Input
+              id="user-username"
               required
               minLength={3}
               value={form.username}
@@ -3096,8 +3206,9 @@ function UsersPage() {
             />
           </div>
           <div className="field">
-            <Label>Perfil</Label>
+            <Label htmlFor="user-role">Perfil</Label>
             <select
+              id="user-role"
               className="form-select"
               value={form.role}
               onChange={event =>
@@ -3110,8 +3221,11 @@ function UsersPage() {
             </select>
           </div>
           <div className="field">
-            <Label>Funcionário vinculado (opcional)</Label>
+            <Label htmlFor="user-employee">
+              Funcionário vinculado (opcional)
+            </Label>
             <select
+              id="user-employee"
               className="form-select"
               value={form.employeeId}
               onChange={event =>
@@ -3130,8 +3244,9 @@ function UsersPage() {
             </select>
           </div>
           <div className="field">
-            <Label>Senha inicial</Label>
+            <Label htmlFor="user-password">Senha inicial</Label>
             <Input
+              id="user-password"
               required
               minLength={12}
               type="password"
@@ -3167,7 +3282,12 @@ function UsersPage() {
         ) : query.isError ? (
           <QueryError retry={retry} />
         ) : query.data?.length ? (
-          <div className="table-scroll">
+          <div
+            className="table-scroll"
+            role="region"
+            aria-label="Tabela de usuários; deslize horizontalmente para ver todas as colunas"
+            tabIndex={0}
+          >
             <table className="data-table">
               <thead>
                 <tr>
@@ -3303,8 +3423,9 @@ function SettingsPage() {
           />
           <div className="form-grid">
             <div className="field">
-              <Label>Razão social</Label>
+              <Label htmlFor="setting-legal-name">Razão social</Label>
               <Input
+                id="setting-legal-name"
                 value={form.legalName}
                 onChange={event =>
                   setForm({ ...form, legalName: event.target.value })
@@ -3312,8 +3433,9 @@ function SettingsPage() {
               />
             </div>
             <div className="field">
-              <Label>Nome fantasia</Label>
+              <Label htmlFor="setting-trade-name">Nome fantasia</Label>
               <Input
+                id="setting-trade-name"
                 value={form.tradeName}
                 onChange={event =>
                   setForm({ ...form, tradeName: event.target.value })
@@ -3321,8 +3443,9 @@ function SettingsPage() {
               />
             </div>
             <div className="field">
-              <Label>CNPJ</Label>
+              <Label htmlFor="setting-cnpj">CNPJ</Label>
               <Input
+                id="setting-cnpj"
                 value={form.cnpj}
                 onChange={event =>
                   setForm({ ...form, cnpj: event.target.value })
@@ -3330,8 +3453,9 @@ function SettingsPage() {
               />
             </div>
             <div className="field">
-              <Label>Endereço</Label>
+              <Label htmlFor="setting-address">Endereço</Label>
               <Input
+                id="setting-address"
                 value={form.address}
                 onChange={event =>
                   setForm({ ...form, address: event.target.value })
@@ -3339,8 +3463,9 @@ function SettingsPage() {
               />
             </div>
             <div className="field">
-              <Label>Cidade</Label>
+              <Label htmlFor="setting-city">Cidade</Label>
               <Input
+                id="setting-city"
                 value={form.city}
                 onChange={event =>
                   setForm({ ...form, city: event.target.value })
@@ -3348,8 +3473,9 @@ function SettingsPage() {
               />
             </div>
             <div className="field">
-              <Label>UF</Label>
+              <Label htmlFor="setting-state">UF</Label>
               <Input
+                id="setting-state"
                 maxLength={2}
                 value={form.state}
                 onChange={event =>
@@ -3358,8 +3484,9 @@ function SettingsPage() {
               />
             </div>
             <div className="field">
-              <Label>CEP</Label>
+              <Label htmlFor="setting-postal-code">CEP</Label>
               <Input
+                id="setting-postal-code"
                 value={form.postalCode}
                 onChange={event =>
                   setForm({ ...form, postalCode: event.target.value })
@@ -3375,13 +3502,14 @@ function SettingsPage() {
           />
           <div className="form-grid">
             <div className="field">
-              <Label>
+              <Label htmlFor="setting-gasoline-price">
                 <FuelTypeBadge fuelType="gasolina_comum" />
                 Preço por litro
               </Label>
               <div className="currency-input">
                 <span>R$</span>
                 <Input
+                  id="setting-gasoline-price"
                   inputMode="decimal"
                   value={form.gasoline}
                   onChange={event =>
@@ -3391,13 +3519,14 @@ function SettingsPage() {
               </div>
             </div>
             <div className="field">
-              <Label>
+              <Label htmlFor="setting-diesel-price">
                 <FuelTypeBadge fuelType="diesel_s10" />
                 Preço por litro
               </Label>
               <div className="currency-input">
                 <span>R$</span>
                 <Input
+                  id="setting-diesel-price"
                   inputMode="decimal"
                   value={form.diesel}
                   onChange={event =>
@@ -3407,10 +3536,13 @@ function SettingsPage() {
               </div>
             </div>
             <div className="field">
-              <Label>Tolerância de diferença</Label>
+              <Label htmlFor="setting-tolerance">
+                Tolerância de diferença (R$)
+              </Label>
               <div className="currency-input">
                 <span>R$</span>
                 <Input
+                  id="setting-tolerance"
                   inputMode="decimal"
                   value={form.tolerance}
                   onChange={event =>
@@ -3430,6 +3562,7 @@ function SettingsPage() {
             type="submit"
             className="primary-button"
             disabled={save.isPending}
+            aria-busy={save.isPending}
           >
             <Check size={16} />
             {save.isPending ? "Salvando…" : "Salvar configurações"}
@@ -3465,7 +3598,12 @@ function AuditPage() {
         ) : query.isError ? (
           <QueryError retry={() => query.refetch()} />
         ) : query.data?.length ? (
-          <div className="table-scroll">
+          <div
+            className="table-scroll"
+            role="region"
+            aria-label="Tabela de auditoria; deslize horizontalmente para ver todas as colunas"
+            tabIndex={0}
+          >
             <table className="data-table">
               <thead>
                 <tr>
@@ -3493,14 +3631,30 @@ function AuditPage() {
                       {row.event.targetType} #{row.event.targetId}
                     </td>
                     <td>
-                      {[
-                        row.event.reason,
-                        row.event.field
-                          ? `${row.event.field}: ${row.event.beforeValue ?? "—"} → ${row.event.afterValue ?? "—"}`
-                          : null,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ") || "—"}
+                      <div className="audit-detail">
+                        {row.event.reason && (
+                          <p>
+                            <strong>Justificativa</strong>
+                            <span>{row.event.reason}</span>
+                          </p>
+                        )}
+                        {row.event.field && (
+                          <div className="audit-change">
+                            <strong>{row.event.field}</strong>
+                            <dl>
+                              <div>
+                                <dt>Anterior</dt>
+                                <dd>{row.event.beforeValue ?? "—"}</dd>
+                              </div>
+                              <div>
+                                <dt>Novo</dt>
+                                <dd>{row.event.afterValue ?? "—"}</dd>
+                              </div>
+                            </dl>
+                          </div>
+                        )}
+                        {!row.event.reason && !row.event.field && "—"}
+                      </div>
                     </td>
                   </tr>
                 ))}

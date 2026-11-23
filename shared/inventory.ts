@@ -217,7 +217,7 @@ export function summarizeTankSalesWindow(
     }
   }
   const averageDailyLiters =
-    coveredDays >= minimumSampleDays ? totalLiters / coveredDays : 0;
+    coveredDays > 0 ? totalLiters / coveredDays : 0;
   return {
     effectiveStart,
     availableDays: coveredDays,
@@ -227,5 +227,6 @@ export function summarizeTankSalesWindow(
     totalLiters,
     averageDailyLiters,
     records: relevantSales.length,
+    minimumSampleReached: coveredDays >= minimumSampleDays,
   };
 }

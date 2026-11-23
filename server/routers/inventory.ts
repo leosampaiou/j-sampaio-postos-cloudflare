@@ -20,7 +20,6 @@ import {
 } from "../../shared/businessDate";
 import { FUEL_TYPES } from "../../shared/fuel";
 import {
-  MINIMUM_AUTONOMY_SAMPLE_DAYS,
   autonomyInDays,
   classifyStockHealth,
   roundLiters,
@@ -317,8 +316,12 @@ export const inventoryRouter = router({
           today,
           tank.stockStartDate
         );
-        const { availableDays, relevantSales, averageDailyLiters } =
-          windowSummary;
+        const {
+          availableDays,
+          relevantSales,
+          averageDailyLiters,
+          minimumSampleReached,
+        } = windowSummary;
         const autonomyDays = autonomyInDays(stockLiters, averageDailyLiters);
         const physicalDifferencePercent =
           latestMeasurement?.differencePercent == null
@@ -337,7 +340,7 @@ export const inventoryRouter = router({
         });
         const dataQuality =
           !assignedPumpIds.size ||
-          availableDays < MINIMUM_AUTONOMY_SAMPLE_DAYS ||
+          !minimumSampleReached ||
           availableDays < windowDays
             ? ("baixa" as const)
             : ("adequada" as const);

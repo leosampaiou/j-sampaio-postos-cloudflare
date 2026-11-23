@@ -60,7 +60,7 @@ function completeDay(
 }
 
 describe("inventory estimates", () => {
-  it("requires three complete days before enabling autonomy estimates", () => {
+  it("uses three complete days as the threshold for adequate sample quality", () => {
     expect(MINIMUM_AUTONOMY_SAMPLE_DAYS).toBe(3);
   });
 
@@ -219,7 +219,7 @@ describe("inventory estimates", () => {
     expect(autonomyInDays(1000, summary.averageDailyLiters)).toBeNull();
   });
 
-  it("withholds an estimate when there are fewer than three covered sample days", () => {
+  it("estimates from fewer than three complete days and marks the sample as low confidence", () => {
     const summary = summarizeTankSalesWindow(
       [
         ...completeDay("2026-11-20", 1, [50, 50]),
@@ -235,8 +235,9 @@ describe("inventory estimates", () => {
     );
 
     expect(summary.coveredDays).toBe(2);
-    expect(summary.averageDailyLiters).toBe(0);
-    expect(autonomyInDays(8500, summary.averageDailyLiters)).toBeNull();
+    expect(summary.averageDailyLiters).toBe(100);
+    expect(summary.minimumSampleReached).toBe(false);
+    expect(autonomyInDays(8500, summary.averageDailyLiters)).toBe(85);
   });
 
   it("does not invent an average before the tank stock start date", () => {

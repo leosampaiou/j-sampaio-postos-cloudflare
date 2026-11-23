@@ -1315,3 +1315,24 @@ Evidências em 22/11/2026: a amostra exige um fechamento `manha` (13h) e um `noi
 
 ### [ ] Entrega GitHub
 - Após validação, criar commit `security: harden application and optimize database performance` e fazer push à branch de trabalho sem reescrever histórico, sem force-push, sem secrets ou temporários.
+
+
+## Segurança e desempenho — continuação da auditoria (23/11/2026)
+
+### [x] Rate limit de login compartilhado e persistente
+- Substituir estado apenas em memória do Worker por buckets PostgreSQL compartilhados entre instâncias/reinícios; limitar por IP e por par IP/conta, armazenar chaves pseudonimizadas, aplicar atraso progressivo e limpar registros expirados em lotes limitados. Testes de integração confirmam limite persistente em conexões independentes; comportamento no caso de indisponibilidade do banco ainda requer avaliação operacional.
+
+### [x] Unicidade concorrente do vínculo funcionário–usuário
+- Garantir no servidor e no PostgreSQL que um funcionário não seja vinculado a mais de uma conta, preservando contas e vínculos preexistentes; rejeitar conflitos sem duplicar contas. Aplicar migration apenas após preflight de duplicidades. Teste concorrente no PostgreSQL descartável confirmou um único vínculo.
+
+### [x] Reduzir agregações desnecessárias no dashboard de estoque
+- Calcular saldo por tanque no SQL e escolher determinística e corretamente a última medição por tanque, sem mudar o histórico ou inventar dados. Verificado por tipos/build; ainda falta plano de execução com volume representativo e medição válida de desempenho.
+
+### [ ] Completar a auditoria técnica sem perda de dados
+- Revisar isolamento multiunidade e atomicidade de auditoria em todas as mutações; garantir cache segregado por usuário/unidade. Revisar consultas, paginação e backfill em lotes idempotentes, sem truncar ou ocultar histórico. Fazer consultas de histórico do estoque sob demanda e invalidar apenas os dados afetados. Revisar CSP/cabeçalhos sem quebrar HTML/CDN e Preview cross-site; não aplicar `X-Frame-Options: DENY/SAMEORIGIN` ou `frame-ancestors 'none'/'self'`. Investigar code splitting para reduzir bundle >500 kB e medir somente com método reprodutível.
+
+### [ ] Planejar e validar migração integral para UUID
+- Converter PKs/FKs, contratos API/Zod/UI, auditoria polimórfica, idempotência e referências relacionadas como um único rollout coordenado; preservar todos os registros/relacionamentos, testar em banco isolado com backup e ensaiar rollback. UUID não substitui autorização. Não implementar conversão parcial nem executar em produção sem validação e autorização aplicável.
+
+### Evidências desta continuação
+- `pnpm check` passou; `pnpm test` passou com 71 testes; `pnpm test:integration` passou com 2 testes PostgreSQL em banco local descartável; `pnpm build` passou com aviso de chunk principal maior que 500 kB. O banco descartável foi removido. Staging/produção não foram acessados. A auditoria permanece parcial até concluir itens abertos acima.

@@ -1,9 +1,11 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
   index,
   integer,
   numeric,
   pgEnum,
+  primaryKey,
   pgTable,
   serial,
   text,
@@ -128,7 +130,9 @@ export const employees = pgTable(
   },
   t => [
     index("employees_unit_idx").on(t.unitId),
-    index("employees_linked_user_idx").on(t.linkedUserId),
+    uniqueIndex("employees_linked_user_unique")
+      .on(t.linkedUserId)
+      .where(sql`${t.linkedUserId} IS NOT NULL`),
   ]
 );
 
@@ -557,6 +561,30 @@ export const payrollAdjustmentReviews = pgTable(
     ),
     index("payroll_review_unit_month_idx").on(t.unitId, t.referenceMonth),
     index("payroll_review_case_idx").on(t.caseId),
+  ]
+);
+
+export const loginAttemptLimits = pgTable(
+  "loginAttemptLimits",
+  {
+    scope: varchar("scope", { length: 16 }).notNull(),
+    keyHash: varchar("keyHash", { length: 64 }).notNull(),
+    requestCount: integer("requestCount").default(0).notNull(),
+    windowStartedAt: timestamp("windowStartedAt", {
+      withTimezone: true,
+      mode: "date",
+    }).notNull(),
+    blockedUntil: timestamp("blockedUntil", {
+      withTimezone: true,
+      mode: "date",
+    }),
+    updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" })
+      .defaultNow()
+      .notNull(),
+  },
+  t => [
+    primaryKey({ columns: [t.scope, t.keyHash] }),
+    index("login_attempt_limits_updated_idx").on(t.updatedAt),
   ]
 );
 

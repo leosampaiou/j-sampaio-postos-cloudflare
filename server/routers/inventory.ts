@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, gte, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   appUsers,
@@ -69,18 +69,15 @@ async function logAudit(
 }
 
 async function movementBalance(executor: any, unitId: number, tankId: number) {
-  const rows = await executor
-    .select({ quantityLiters: stockMovements.quantityLiters })
+  const [row] = await executor
+    .select({
+      stockLiters: sql<string>`COALESCE(SUM(${stockMovements.quantityLiters}), 0)`,
+    })
     .from(stockMovements)
     .where(
       and(eq(stockMovements.unitId, unitId), eq(stockMovements.tankId, tankId))
     );
-  return roundLiters(
-    rows.reduce(
-      (sum: number, row: any) => sum + safeNumber(row.quantityLiters),
-      0
-    )
-  );
+  return roundLiters(safeNumber(row?.stockLiters));
 }
 
 async function lockTank(
@@ -137,6 +134,7 @@ export const inventoryRouter = router({
 
       const today = businessDateInSaoPaulo();
       const from30 = shiftCalendarDate(today, -29);
+      const activeTankIds = tanks.map(tank => tank.id);
       const [
         movements,
         measurements,
@@ -147,15 +145,30 @@ export const inventoryRouter = router({
         allTanks,
       ] = await Promise.all([
         db
-          .select()
+          .select({
+            tankId: stockMovements.tankId,
+            stockLiters: sql<string>`COALESCE(SUM(${stockMovements.quantityLiters}), 0)`,
+            latestMovementAt: sql<Date | null>`MAX(${stockMovements.occurredAt})`,
+          })
           .from(stockMovements)
-          .where(eq(stockMovements.unitId, ctx.user.unitId))
-          .orderBy(asc(stockMovements.occurredAt), asc(stockMovements.id)),
+          .where(
+            and(
+              eq(stockMovements.unitId, ctx.user.unitId),
+              inArray(stockMovements.tankId, activeTankIds)
+            )
+          )
+          .groupBy(stockMovements.tankId),
         db
-          .select()
+          .selectDistinctOn([tankMeasurements.tankId])
           .from(tankMeasurements)
-          .where(eq(tankMeasurements.unitId, ctx.user.unitId))
+          .where(
+            and(
+              eq(tankMeasurements.unitId, ctx.user.unitId),
+              inArray(tankMeasurements.tankId, activeTankIds)
+            )
+          )
           .orderBy(
+            asc(tankMeasurements.tankId),
             desc(tankMeasurements.measuredAt),
             desc(tankMeasurements.id)
           ),
@@ -269,23 +282,18 @@ export const inventoryRouter = router({
       );
       const activePumps = pumps.filter(pump => pump.active);
       const activePumpIds = new Set(activePumps.map(pump => pump.id));
+      const movementsByTank = new Map(
+        movements.map(row => [row.tankId, row])
+      );
+      const measurementsByTank = new Map(
+        measurements.map(row => [row.tankId, row])
+      );
       const summaries = tanks.map(tank => {
-        const tankMovements = movements.filter(row => row.tankId === tank.id);
-        const stockLiters = roundLiters(
-          tankMovements.reduce(
-            (sum, row) => sum + safeNumber(row.quantityLiters),
-            0
-          )
-        );
-        const tankMeasurementsRows = measurements.filter(
-          row => row.tankId === tank.id
-        );
-        const latestMeasurement = tankMeasurementsRows[0] ?? null;
-        const latestMovement = tankMovements.length
-          ? tankMovements[tankMovements.length - 1]
-          : null;
+        const movement = movementsByTank.get(tank.id);
+        const stockLiters = roundLiters(safeNumber(movement?.stockLiters));
+        const latestMeasurement = measurementsByTank.get(tank.id) ?? null;
         const lastUpdatedAt = maxTimestamp([
-          latestMovement?.occurredAt,
+          movement?.latestMovementAt,
           latestMeasurement?.measuredAt,
         ]);
         const stale =

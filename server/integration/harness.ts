@@ -30,6 +30,7 @@ import { getPostgresDb, type PostgresDatabase } from "../db.pg";
 export const TEST_INITIAL_ADMIN_SETUP_KEY =
   "integration-only-initial-admin-setup-key";
 const TABLES = [
+  "loginAttemptLimits",
   "appSessions",
   "auditEvents",
   "closureNozzles",
@@ -84,15 +85,20 @@ function getTestUrl(connectionString = process.env.PG_TEST_URL) {
   return connectionString;
 }
 
-async function applyMigration(client: ReturnType<typeof postgres>) {
+async function applyMigration(
+  client: ReturnType<typeof postgres>,
+  fileName: string
+) {
   const migration = readFileSync(
-    new URL("../../drizzle/pg-migrations/0000_initial_postgres.sql", import.meta.url),
+    new URL(`../../drizzle/pg-migrations/${fileName}`, import.meta.url),
     "utf8"
   );
-  for (const statement of migration.split("--> statement-breakpoint")) {
-    const trimmed = statement.trim();
-    if (trimmed) await client.unsafe(trimmed);
-  }
+  await client.begin(async transaction => {
+    for (const statement of migration.split("--> statement-breakpoint")) {
+      const trimmed = statement.trim();
+      if (trimmed) await transaction.unsafe(trimmed);
+    }
+  });
 }
 
 /** Limpa apenas o banco indicado por PG_TEST_URL; nunca usa DATABASE_URL. */
@@ -105,13 +111,15 @@ export async function resetIntegrationDatabase(
       `select to_regclass('public.units') as exists`
     );
     if (!exists) {
-      await applyMigration(client);
-    } else {
-      const tables = TABLES.map(table => `"${table}"`).join(", ");
-      await client.unsafe(
-        `TRUNCATE TABLE ${tables} RESTART IDENTITY CASCADE`
-      );
+      await applyMigration(client, "0000_initial_postgres.sql");
     }
+    const [{ limiterExists }] = await client.unsafe<
+      { limiterExists: string | null }[]
+    >(`select to_regclass('public."loginAttemptLimits"') as "limiterExists"`);
+    if (!limiterExists)
+      await applyMigration(client, "0001_security_hardening.sql");
+    const tables = TABLES.map(table => `"${table}"`).join(", ");
+    await client.unsafe(`TRUNCATE TABLE ${tables} RESTART IDENTITY CASCADE`);
   } finally {
     await client.end();
   }

@@ -34,6 +34,10 @@ import {
 import { syncFinalizedClosure } from "./closureIntegrations";
 import { discrepanciesRouter } from "./routers/discrepancies";
 import { inventoryRouter } from "./routers/inventory";
+import {
+  clearSuccessfulLoginPair,
+  consumeLoginAttempt,
+} from "./loginRateLimit";
 import type { PostgresDatabase } from "./db.pg";
 import {
   constantTimeEqual,
@@ -286,43 +290,39 @@ const authRouter = router({
     )
     .mutation(async ({ input, ctx }) => {
       const now = Date.now();
-      const ip =
-        ctx.req.headers.get("cf-connecting-ip") ??
-        ctx.req.headers.get("x-forwarded-for")?.split(",", 1)[0]?.trim() ??
-        "unknown";
-      const bucket = loginAttempts.get(ip);
-      if (bucket && bucket.until > now && bucket.count >= 8)
+      // Cloudflare overwrites cf-connecting-ip at its edge. Do not trust arbitrary
+      // X-Forwarded-For values supplied by clients when the trusted header is absent.
+      const ip = ctx.req.headers.get("cf-connecting-ip") ?? "unknown";
+      const normalizedUsername = input.username.toLowerCase();
+      const allowed = await consumeLoginAttempt(
+        ctx.db,
+        ip,
+        normalizedUsername,
+        new Date(now)
+      );
+      if (!allowed)
         throw new TRPCError({
-          code: "TOO_MANY_REQUESTS",
-          message:
-            "Muitas tentativas. Aguarde alguns minutos e tente novamente.",
+          code: "UNAUTHORIZED",
+          message: "Usuário ou senha incorretos.",
         });
       const db = ctx.db;
       const [user] = await db
         .select()
         .from(appUsers)
-        .where(eq(appUsers.username, input.username.toLowerCase()))
+        .where(eq(appUsers.username, normalizedUsername))
         .limit(1);
       let valid = false;
       if (user && user.active)
         valid = await verifyPassword(input.password, user.passwordHash);
       else await hashPassword(input.password.slice(0, 128).padEnd(12, "x"));
       if (!user || !user.active || !valid) {
-        const current = loginAttempts.get(ip);
-        loginAttempts.set(ip, {
-          count: current && current.until > now ? current.count + 1 : 1,
-          until:
-            current && current.until > now
-              ? current.until
-              : now + 15 * 60 * 1000,
-        });
         throw new TRPCError({
           code: "UNAUTHORIZED",
           message: "Usuário ou senha incorretos.",
         });
       }
-      loginAttempts.delete(ip);
       const session = await issueSession(ctx.db, user.id);
+      await clearSuccessfulLoginPair(db, ip, normalizedUsername);
       appendSessionCookie(ctx.resHeaders, APP_SESSION_COOKIE, session.token);
       return { user: publicUser(user), csrfToken: session.csrfToken };
     }),
@@ -344,7 +344,6 @@ const authRouter = router({
     );
   }),
 });
-const loginAttempts = new Map<string, { count: number; until: number }>();
 
 const employeesRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
@@ -458,7 +457,8 @@ const usersRouter = router({
                   eq(employees.active, true)
                 )
               )
-              .limit(1);
+              .limit(1)
+              .for("update");
             if (!employee || employee.linkedUserId)
               throw new TRPCError({
                 code: "CONFLICT",
@@ -475,11 +475,25 @@ const usersRouter = router({
               role: input.role,
             })
             .returning({ id: appUsers.id });
-          if (input.employeeId)
-            await tx
+          if (input.employeeId) {
+            const [linked] = await tx
               .update(employees)
               .set({ linkedUserId: result.id })
-              .where(eq(employees.id, input.employeeId));
+              .where(
+                and(
+                  eq(employees.id, input.employeeId),
+                  eq(employees.unitId, ctx.user.unitId),
+                  eq(employees.active, true),
+                  isNull(employees.linkedUserId)
+                )
+              )
+              .returning({ id: employees.id });
+            if (!linked)
+              throw new TRPCError({
+                code: "CONFLICT",
+                message: "Funcionário indisponível ou já vinculado.",
+              });
+          }
           await addAudit(
             tx,
             ctx.user.unitId,
@@ -497,7 +511,7 @@ const usersRouter = router({
         throw new TRPCError({
           code: "CONFLICT",
           message:
-            "Não foi possível criar a conta; verifique se o nome de usuário já existe.",
+            "Não foi possível criar a conta; verifique o nome de usuário e o vínculo do funcionário.",
         });
       }
     }),

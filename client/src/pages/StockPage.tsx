@@ -70,6 +70,18 @@ const freshIdempotencyKey = () =>
   `${Date.now()}-${Math.random().toString(16).slice(2)}-4000-8000-${Math.random().toString(16).slice(2)}`;
 const movementQuantity = (value: number | string) =>
   `${Number(value) > 0 ? "+" : ""}${liters(value)}`;
+const movementLabel = (row: {
+  movementType: string;
+  sourceClosureId: number | null;
+  sourcePumpId: number | null;
+}) =>
+  row.sourceClosureId !== null && row.sourcePumpId === null
+    ? row.movementType === "sale"
+      ? "Baixa consolidada do fechamento"
+      : row.movementType === "correction"
+        ? "Correção consolidada do fechamento"
+        : (movementNames[row.movementType] ?? row.movementType)
+    : (movementNames[row.movementType] ?? row.movementType);
 
 export default function StockPage({ user }: { user: User }) {
   const utils = trpc.useUtils();
@@ -302,7 +314,7 @@ export default function StockPage({ user }: { user: User }) {
       Data: new Date(row.occurredAt).toLocaleString("pt-BR"),
       Tanque: `${row.tankName} (${row.tankCode})`,
       Combustível: fuelTypeLabel(row.fuelType),
-      Tipo: movementNames[row.movementType] ?? row.movementType,
+      Tipo: movementLabel(row),
       Quantidade: Number(row.quantityLiters),
       "Saldo após movimento": Number(row.balanceAfterLiters),
       "Custo de aquisição":
@@ -1666,9 +1678,7 @@ export default function StockPage({ user }: { user: User }) {
                           {row.tankCode}
                         </small>
                       </td>
-                      <td>
-                        {movementNames[row.movementType] ?? row.movementType}
-                      </td>
+                      <td>{movementLabel(row)}</td>
                       <td
                         className={
                           Number(row.quantityLiters) < 0

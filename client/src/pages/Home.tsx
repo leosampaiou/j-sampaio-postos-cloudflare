@@ -10,6 +10,15 @@ import { FuelTypeBadge } from "@/components/FuelType";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { shareClosurePdf } from "@/lib/closurePdf";
 import {
@@ -2181,11 +2190,13 @@ function ClosureTable({
                   </td>
                   <td>
                     <span
-                      className={`status-badge ${row.status === "finalizado" ? (row.result === "conferido" ? "success" : "danger") : row.status === "aguardando_conferencia" ? "warning" : "neutral"}`}
+                      className={`status-badge ${row.deletedAt ? "neutral" : row.status === "finalizado" ? (row.result === "conferido" ? "success" : "danger") : row.status === "aguardando_conferencia" ? "warning" : "neutral"}`}
                     >
-                      {row.status === "aguardando_conferencia"
-                        ? "Aguardando"
-                        : resultLabel(row.result)}
+                      {row.deletedAt
+                        ? "Arquivado"
+                        : row.status === "aguardando_conferencia"
+                          ? "Aguardando"
+                          : resultLabel(row.result)}
                     </span>
                   </td>
                   <td>
@@ -2239,8 +2250,14 @@ function HistoryPage({ user }: { user: User }) {
       ? Number(new URLSearchParams(location.search).get("fechamento"))
       : null
   );
+  const [showArchived, setShowArchived] = useState(false);
   const query = trpc.closures.listPage.useInfiniteQuery(
-    { from: from || undefined, to: to || undefined, limit: 50 },
+    {
+      from: from || undefined,
+      to: to || undefined,
+      includeArchived: user.role === "administrador" && showArchived,
+      limit: 50,
+    },
     {
       getNextPageParam: lastPage => lastPage.nextCursor ?? undefined,
       retry: false,
@@ -2278,6 +2295,26 @@ function HistoryPage({ user }: { user: User }) {
     },
     onError: error => toast.error(error.message),
   });
+  const archive = trpc.closures.archiveDraft.useMutation({
+    onSuccess: async () => {
+      await Promise.all([
+        query.refetch(),
+        utils.closures.list.invalidate(),
+        utils.analytics.dashboard.invalidate(),
+      ]);
+      setSelected(null);
+      toast.success("Rascunho arquivado. Os dados foram preservados.");
+    },
+    onError: error => toast.error(error.message),
+  });
+  const restore = trpc.closures.restoreDraft.useMutation({
+    onSuccess: async () => {
+      await Promise.all([query.refetch(), utils.closures.list.invalidate()]);
+      setSelected(null);
+      toast.success("Rascunho restaurado ao histórico ativo.");
+    },
+    onError: error => toast.error(error.message),
+  });
   const confirmClosure = (participants: ConfirmedParticipant[]) => {
     if (selected) confirm.mutate({ id: selected, participants });
   };
@@ -2312,6 +2349,16 @@ function HistoryPage({ user }: { user: User }) {
             onChange={event => setTo(event.target.value)}
           />
         </div>
+        {user.role === "administrador" && (
+          <label className="archive-filter">
+            <input
+              type="checkbox"
+              checked={showArchived}
+              onChange={event => setShowArchived(event.target.checked)}
+            />
+            <span>Mostrar rascunhos arquivados</span>
+          </label>
+        )}
         <Button
           variant="outline"
           onClick={() => {
@@ -2323,6 +2370,7 @@ function HistoryPage({ user }: { user: User }) {
         </Button>
         <span className="filter-count" aria-live="polite">
           {query.isError ? "—" : rows.length} registros
+          {showArchived ? " arquivados" : " ativos"}
         </span>
       </div>
       <ClosureTable
@@ -2361,10 +2409,24 @@ function HistoryPage({ user }: { user: User }) {
           }
           onResumeDraft={
             detail.data?.status === "rascunho" &&
+            !detail.data?.deletedAt &&
             (user.role !== "frentista" || detail.data.createdBy === user.id)
               ? () => setLocation(`/fechamento/editar/${selected}`)
               : undefined
           }
+          onArchive={
+            user.role === "administrador"
+              ? (reason, confirmation) =>
+                  archive.mutate({ id: selected, reason, confirmation })
+              : undefined
+          }
+          archiveBusy={archive.isPending}
+          onRestore={
+            user.role === "administrador"
+              ? reason => restore.mutate({ id: selected, reason })
+              : undefined
+          }
+          restoreBusy={restore.isPending}
         />
       )}
     </>
@@ -2383,6 +2445,10 @@ function DetailModal({
   onReopen,
   onEdit,
   onResumeDraft,
+  onArchive,
+  archiveBusy = false,
+  onRestore,
+  restoreBusy = false,
 }: {
   closure: any;
   loading: boolean;
@@ -2395,8 +2461,17 @@ function DetailModal({
   onReopen?: () => void;
   onEdit?: () => void;
   onResumeDraft?: () => void;
+  onArchive?: (reason: string, confirmation: "EXCLUIR") => void;
+  archiveBusy?: boolean;
+  onRestore?: (reason: string) => void;
+  restoreBusy?: boolean;
 }) {
   const [shareBusy, setShareBusy] = useState(false);
+  const [archiveAction, setArchiveAction] = useState<
+    "archive" | "restore" | null
+  >(null);
+  const [archiveReason, setArchiveReason] = useState("");
+  const [archiveConfirmation, setArchiveConfirmation] = useState("");
   const [participants, setParticipants] = useState<
     Array<{ employeeId: number; sharePercent: string }>
   >([]);
@@ -2479,324 +2554,460 @@ function DetailModal({
     );
   };
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="detail-modal" onClick={event => event.stopPropagation()}>
-        <div className="modal-header">
-          <div>
-            <span className="eyebrow">DETALHES DO TURNO</span>
-            <h2>Fechamento</h2>
+    <>
+      <div className="modal-backdrop" onClick={onClose}>
+        <div
+          className="detail-modal"
+          onClick={event => event.stopPropagation()}
+        >
+          <div className="modal-header">
+            <div>
+              <span className="eyebrow">DETALHES DO TURNO</span>
+              <h2>Fechamento</h2>
+            </div>
+            <button
+              className="icon-button"
+              aria-label="Fechar detalhes do fechamento"
+              onClick={onClose}
+            >
+              <X size={19} />
+            </button>
           </div>
-          <button
-            className="icon-button"
-            aria-label="Fechar detalhes do fechamento"
-            onClick={onClose}
-          >
-            <X size={19} />
-          </button>
-        </div>
-        {loading ? (
-          <p>Carregando detalhes…</p>
-        ) : error ? (
-          <QueryError retry={retry} />
-        ) : (
-          closure && (
-            <>
-              <div className="detail-top">
-                <strong>
-                  {dateLabel(closure.closureDate)} · {shiftLabel(closure.shift)}
-                </strong>
-                <span
-                  className={`status-badge ${closure.result === "conferido" ? "success" : closure.result === "pendente" ? "warning" : "danger"}`}
-                >
-                  {resultLabel(closure.result)}
-                </span>
-              </div>
-              <div className="detail-meta">
-                <span>
-                  Frentista<strong>{closure.employeeName}</strong>
-                </span>
-                <span>
-                  Responsável<strong>{closure.responsibleName}</strong>
-                </span>
-                <span>
-                  Status<strong>{statusLabel(closure.status)}</strong>
-                </span>
-              </div>
-              <div
-                className="table-scroll"
-                role="region"
-                aria-label="Tabela de detalhes do fechamento; deslize horizontalmente para ver todas as colunas"
-                tabIndex={0}
-              >
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Bico</th>
-                      <th>Combustível</th>
-                      <th>Inicial</th>
-                      <th>Final</th>
-                      <th>Litros</th>
-                      <th>Preço</th>
-                      <th>Valor</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {closure.nozzles?.map((nozzle: any) => (
-                      <tr key={nozzle.id}>
-                        <td>{nozzle.pumpNumber}</td>
-                        <td>
-                          <FuelTypeBadge fuelType={nozzle.fuelType} />
-                        </td>
-                        <td>{nozzle.initialReading}</td>
-                        <td>{nozzle.finalReading}</td>
-                        <td>{liters(Number(nozzle.liters))}</td>
-                        <td>{brl(nozzle.priceCents)}</td>
-                        <td>{brl(nozzle.valueCents)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="detail-payments">
-                <strong>Recebimentos</strong>
-                {closure.payments?.map((payment: any) => (
-                  <div key={payment.id}>
-                    <span>
-                      {
-                        (
-                          {
-                            dinheiro: "Dinheiro",
-                            pix: "PIX",
-                            debito: "Débito",
-                            credito: "Crédito",
-                          } as any
-                        )[payment.method]
-                      }
-                    </span>
-                    <b>{brl(payment.amountCents)}</b>
-                  </div>
-                ))}
-              </div>
-              <div className="detail-totals">
-                <div>
-                  <span>Vendas</span>
-                  <b>{brl(closure.salesCents)}</b>
+          {loading ? (
+            <p>Carregando detalhes…</p>
+          ) : error ? (
+            <QueryError retry={retry} />
+          ) : (
+            closure && (
+              <>
+                <div className="detail-top">
+                  <strong>
+                    {dateLabel(closure.closureDate)} ·{" "}
+                    {shiftLabel(closure.shift)}
+                  </strong>
+                  <span
+                    className={`status-badge ${closure.result === "conferido" ? "success" : closure.result === "pendente" ? "warning" : "danger"}`}
+                  >
+                    {resultLabel(closure.result)}
+                  </span>
                 </div>
-                <div>
-                  <span>Recebido</span>
-                  <b>{brl(closure.receivedCents)}</b>
-                </div>
-                <div>
-                  <span>Diferença</span>
-                  <b>{brl(closure.differenceCents)}</b>
-                </div>
-              </div>
-              {closure.participants?.length > 0 && (
-                <div className="notes-box">
-                  <strong>Participantes informados</strong>
-                  <p>
-                    {closure.participants
-                      .map(
-                        (person: any) =>
-                          `${person.employeeName}: ${person.sharePercent}%`
-                      )
-                      .join(" · ")}
-                  </p>
-                </div>
-              )}
-              {closure.notes && (
-                <div className="notes-box">
-                  <strong>Observações</strong>
-                  <p>{closure.notes}</p>
-                </div>
-              )}
-              {onConfirm && closure.status === "aguardando_conferencia" && (
-                <section className="allocation-review-box">
-                  <div>
+                <div className="detail-meta">
+                  <span>
+                    Frentista<strong>{closure.employeeName}</strong>
+                  </span>
+                  <span>
+                    Responsável<strong>{closure.responsibleName}</strong>
+                  </span>
+                  <span>
+                    Status
                     <strong>
-                      Revisão gerencial dos envolvidos e do rateio
+                      {closure.deletedAt
+                        ? "Arquivado"
+                        : statusLabel(closure.status)}
                     </strong>
+                  </span>
+                </div>
+                <div
+                  className="table-scroll"
+                  role="region"
+                  aria-label="Tabela de detalhes do fechamento; deslize horizontalmente para ver todas as colunas"
+                  tabIndex={0}
+                >
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Bico</th>
+                        <th>Combustível</th>
+                        <th>Inicial</th>
+                        <th>Final</th>
+                        <th>Litros</th>
+                        <th>Preço</th>
+                        <th>Valor</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {closure.nozzles?.map((nozzle: any) => (
+                        <tr key={nozzle.id}>
+                          <td>{nozzle.pumpNumber}</td>
+                          <td>
+                            <FuelTypeBadge fuelType={nozzle.fuelType} />
+                          </td>
+                          <td>{nozzle.initialReading}</td>
+                          <td>{nozzle.finalReading}</td>
+                          <td>{liters(Number(nozzle.liters))}</td>
+                          <td>{brl(nozzle.priceCents)}</td>
+                          <td>{brl(nozzle.valueCents)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="detail-payments">
+                  <strong>Recebimentos</strong>
+                  {closure.payments?.map((payment: any) => (
+                    <div key={payment.id}>
+                      <span>
+                        {
+                          (
+                            {
+                              dinheiro: "Dinheiro",
+                              pix: "PIX",
+                              debito: "Débito",
+                              credito: "Crédito",
+                            } as any
+                          )[payment.method]
+                        }
+                      </span>
+                      <b>{brl(payment.amountCents)}</b>
+                    </div>
+                  ))}
+                </div>
+                <div className="detail-totals">
+                  <div>
+                    <span>Vendas</span>
+                    <b>{brl(closure.salesCents)}</b>
+                  </div>
+                  <div>
+                    <span>Recebido</span>
+                    <b>{brl(closure.receivedCents)}</b>
+                  </div>
+                  <div>
+                    <span>Diferença</span>
+                    <b>{brl(closure.differenceCents)}</b>
+                  </div>
+                </div>
+                {closure.participants?.length > 0 && (
+                  <div className="notes-box">
+                    <strong>Participantes informados</strong>
                     <p>
-                      A proposta registrada no fechamento não é imputação
-                      aprovada. Revise e confirme os percentuais nesta etapa
-                      antes de finalizar.
+                      {closure.participants
+                        .map(
+                          (person: any) =>
+                            `${person.employeeName}: ${person.sharePercent}%`
+                        )
+                        .join(" · ")}
                     </p>
                   </div>
-                  <div className="allocation-review-add">
-                    <select
-                      className="form-select"
-                      aria-label="Adicionar funcionário ao rateio"
-                      value={newParticipantId}
-                      onChange={event =>
-                        setNewParticipantId(event.target.value)
-                      }
-                    >
-                      <option value="">Adicionar funcionário</option>
-                      {participantOptions
-                        .filter(
-                          person =>
-                            !participants.some(
-                              item => item.employeeId === person.id
-                            )
-                        )
-                        .map(person => (
-                          <option key={person.id} value={person.id}>
-                            {person.fullName}
-                          </option>
-                        ))}
-                    </select>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={!newParticipantId}
-                      onClick={addParticipant}
-                    >
-                      Adicionar
-                    </Button>
+                )}
+                {closure.notes && (
+                  <div className="notes-box">
+                    <strong>Observações</strong>
+                    <p>{closure.notes}</p>
                   </div>
-                  <div className="allocation-share-list">
-                    {participants.map(person => (
-                      <div
-                        className="allocation-share-row"
-                        key={person.employeeId}
+                )}
+                {onConfirm && closure.status === "aguardando_conferencia" && (
+                  <section className="allocation-review-box">
+                    <div>
+                      <strong>
+                        Revisão gerencial dos envolvidos e do rateio
+                      </strong>
+                      <p>
+                        A proposta registrada no fechamento não é imputação
+                        aprovada. Revise e confirme os percentuais nesta etapa
+                        antes de finalizar.
+                      </p>
+                    </div>
+                    <div className="allocation-review-add">
+                      <select
+                        className="form-select"
+                        aria-label="Adicionar funcionário ao rateio"
+                        value={newParticipantId}
+                        onChange={event =>
+                          setNewParticipantId(event.target.value)
+                        }
                       >
-                        <span>
-                          {participantOptions.find(
-                            item => item.id === person.employeeId
-                          )?.fullName ??
-                            closure.participants?.find(
-                              (item: any) =>
-                                item.employeeId === person.employeeId
-                            )?.employeeName ??
-                            "Funcionário"}
-                          {person.employeeId === closure.employeeId
-                            ? " · principal"
-                            : ""}
-                        </span>
-                        <div>
-                          <Input
-                            type="number"
-                            inputMode="numeric"
-                            min="1"
-                            max="100"
-                            step="1"
-                            value={person.sharePercent}
-                            aria-label={`Percentual de ${participantOptions.find(item => item.id === person.employeeId)?.fullName ?? "funcionário"}`}
-                            onChange={event => {
-                              setParticipants(current =>
-                                current.map(item =>
+                        <option value="">Adicionar funcionário</option>
+                        {participantOptions
+                          .filter(
+                            person =>
+                              !participants.some(
+                                item => item.employeeId === person.id
+                              )
+                          )
+                          .map(person => (
+                            <option key={person.id} value={person.id}>
+                              {person.fullName}
+                            </option>
+                          ))}
+                      </select>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={!newParticipantId}
+                        onClick={addParticipant}
+                      >
+                        Adicionar
+                      </Button>
+                    </div>
+                    <div className="allocation-share-list">
+                      {participants.map(person => (
+                        <div
+                          className="allocation-share-row"
+                          key={person.employeeId}
+                        >
+                          <span>
+                            {participantOptions.find(
+                              item => item.id === person.employeeId
+                            )?.fullName ??
+                              closure.participants?.find(
+                                (item: any) =>
                                   item.employeeId === person.employeeId
-                                    ? {
-                                        ...item,
-                                        sharePercent: event.target.value,
-                                      }
-                                    : item
-                                )
-                              );
-                              setRateioReviewed(false);
-                            }}
-                          />{" "}
-                          <small>%</small>
-                          {person.employeeId !== closure.employeeId && (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
+                              )?.employeeName ??
+                              "Funcionário"}
+                            {person.employeeId === closure.employeeId
+                              ? " · principal"
+                              : ""}
+                          </span>
+                          <div>
+                            <Input
+                              type="number"
+                              inputMode="numeric"
+                              min="1"
+                              max="100"
+                              step="1"
+                              value={person.sharePercent}
+                              aria-label={`Percentual de ${participantOptions.find(item => item.id === person.employeeId)?.fullName ?? "funcionário"}`}
+                              onChange={event => {
                                 setParticipants(current =>
-                                  current.filter(
-                                    item =>
-                                      item.employeeId !== person.employeeId
+                                  current.map(item =>
+                                    item.employeeId === person.employeeId
+                                      ? {
+                                          ...item,
+                                          sharePercent: event.target.value,
+                                        }
+                                      : item
                                   )
                                 );
                                 setRateioReviewed(false);
                               }}
-                            >
-                              Remover
-                            </Button>
-                          )}
+                            />{" "}
+                            <small>%</small>
+                            {person.employeeId !== closure.employeeId && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setParticipants(current =>
+                                    current.filter(
+                                      item =>
+                                        item.employeeId !== person.employeeId
+                                    )
+                                  );
+                                  setRateioReviewed(false);
+                                }}
+                              >
+                                Remover
+                              </Button>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="allocation-review-total">
-                    Total do rateio:{" "}
-                    <strong
-                      className={
-                        allocationTotal === 100 ? "text-success" : "text-danger"
-                      }
-                    >
-                      {allocationTotal}%
-                    </strong>
-                  </div>
-                  <label className="allocation-reviewed">
-                    <input
-                      type="checkbox"
-                      checked={rateioReviewed}
-                      onChange={event =>
-                        setRateioReviewed(event.target.checked)
-                      }
-                    />
-                    <span>
-                      Revisei os funcionários envolvidos e confirmo
-                      explicitamente este rateio para a análise da divergência.
-                    </span>
-                  </label>
-                </section>
-              )}
-              <div className="modal-actions">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    if (!openClosurePrintWindow(closure as ClosurePrintInput))
-                      toast.error(
-                        "Permita a abertura da janela para imprimir o fechamento."
-                      );
-                  }}
-                >
-                  <Printer size={16} /> Imprimir
-                </Button>
-                <Button
-                  variant="outline"
-                  disabled={shareBusy}
-                  onClick={actShare}
-                >
-                  <Download size={16} />{" "}
-                  {shareBusy ? "Preparando…" : "Gerar PDF / WhatsApp"}
-                </Button>
-                {onConfirm && closure.status === "aguardando_conferencia" && (
+                      ))}
+                    </div>
+                    <div className="allocation-review-total">
+                      Total do rateio:{" "}
+                      <strong
+                        className={
+                          allocationTotal === 100
+                            ? "text-success"
+                            : "text-danger"
+                        }
+                      >
+                        {allocationTotal}%
+                      </strong>
+                    </div>
+                    <label className="allocation-reviewed">
+                      <input
+                        type="checkbox"
+                        checked={rateioReviewed}
+                        onChange={event =>
+                          setRateioReviewed(event.target.checked)
+                        }
+                      />
+                      <span>
+                        Revisei os funcionários envolvidos e confirmo
+                        explicitamente este rateio para a análise da
+                        divergência.
+                      </span>
+                    </label>
+                  </section>
+                )}
+                <div className="modal-actions">
                   <Button
-                    className="primary-button"
-                    disabled={confirmBusy}
-                    onClick={confirmAllocation}
+                    variant="outline"
+                    onClick={() => {
+                      if (!openClosurePrintWindow(closure as ClosurePrintInput))
+                        toast.error(
+                          "Permita a abertura da janela para imprimir o fechamento."
+                        );
+                    }}
                   >
-                    <BadgeCheck size={16} />
-                    {confirmBusy
-                      ? "Conferindo…"
-                      : "Confirmar rateio e conferir"}
+                    <Printer size={16} /> Imprimir
                   </Button>
-                )}
-                {onReopen && closure.status === "finalizado" && (
-                  <Button variant="outline" onClick={onReopen}>
-                    Reabrir
+                  <Button
+                    variant="outline"
+                    disabled={shareBusy}
+                    onClick={actShare}
+                  >
+                    <Download size={16} />{" "}
+                    {shareBusy ? "Preparando…" : "Gerar PDF / WhatsApp"}
                   </Button>
-                )}
-                {onEdit && closure.status === "reaberto" && (
-                  <Button className="primary-button" onClick={onEdit}>
-                    Editar correção
-                  </Button>
-                )}
-                {onResumeDraft && closure.status === "rascunho" && (
-                  <Button className="primary-button" onClick={onResumeDraft}>
-                    Continuar rascunho
-                  </Button>
-                )}
-              </div>
-            </>
-          )
-        )}
+                  {onConfirm && closure.status === "aguardando_conferencia" && (
+                    <Button
+                      className="primary-button"
+                      disabled={confirmBusy}
+                      onClick={confirmAllocation}
+                    >
+                      <BadgeCheck size={16} />
+                      {confirmBusy
+                        ? "Conferindo…"
+                        : "Confirmar rateio e conferir"}
+                    </Button>
+                  )}
+                  {onReopen && closure.status === "finalizado" && (
+                    <Button variant="outline" onClick={onReopen}>
+                      Reabrir
+                    </Button>
+                  )}
+                  {onEdit && closure.status === "reaberto" && (
+                    <Button className="primary-button" onClick={onEdit}>
+                      Editar correção
+                    </Button>
+                  )}
+                  {onResumeDraft && closure.status === "rascunho" && (
+                    <Button className="primary-button" onClick={onResumeDraft}>
+                      Continuar rascunho
+                    </Button>
+                  )}
+                  {onArchive &&
+                    closure.status === "rascunho" &&
+                    !closure.deletedAt &&
+                    !closure.finalizedAt &&
+                    !closure.reopenedAt && (
+                      <Button
+                        variant="outline"
+                        disabled={archiveBusy}
+                        onClick={() => {
+                          setArchiveReason("");
+                          setArchiveConfirmation("");
+                          setArchiveAction("archive");
+                        }}
+                      >
+                        Arquivar rascunho
+                      </Button>
+                    )}
+                  {onRestore && closure.deletedAt && (
+                    <Button
+                      variant="outline"
+                      disabled={restoreBusy}
+                      onClick={() => {
+                        setArchiveReason("");
+                        setArchiveConfirmation("");
+                        setArchiveAction("restore");
+                      }}
+                    >
+                      Restaurar rascunho
+                    </Button>
+                  )}
+                </div>
+              </>
+            )
+          )}
+        </div>
       </div>
-    </div>
+      <AlertDialog
+        open={archiveAction !== null}
+        onOpenChange={open => {
+          if (!open && !archiveBusy && !restoreBusy) setArchiveAction(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {archiveAction === "archive"
+                ? "Arquivar rascunho?"
+                : "Restaurar rascunho?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {archiveAction === "archive"
+                ? "O registro e seus detalhes serão preservados e poderão ser restaurados por um administrador. Fechamentos finalizados, reabertos ou vinculados não são elegíveis."
+                : "O rascunho voltará ao histórico ativo. A restauração será recusada se já existir outro fechamento ativo para a mesma data e turno."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="field">
+            <Label htmlFor="closure-archive-reason">Motivo obrigatório</Label>
+            <Input
+              id="closure-archive-reason"
+              autoComplete="off"
+              required
+              value={archiveReason}
+              onChange={event => setArchiveReason(event.target.value)}
+              aria-describedby="closure-archive-reason-help"
+              disabled={archiveBusy || restoreBusy}
+            />
+            <small id="closure-archive-reason-help">
+              Informe ao menos 5 caracteres para registrar a justificativa na
+              auditoria.
+            </small>
+          </div>
+          {archiveAction === "archive" && (
+            <div className="field">
+              <Label htmlFor="closure-archive-confirmation">
+                Digite EXCLUIR para confirmar
+              </Label>
+              <Input
+                id="closure-archive-confirmation"
+                autoComplete="off"
+                required
+                value={archiveConfirmation}
+                onChange={event => setArchiveConfirmation(event.target.value)}
+                disabled={archiveBusy}
+              />
+            </div>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              disabled={archiveBusy || restoreBusy}
+              onClick={() => setArchiveAction(null)}
+            >
+              Cancelar
+            </AlertDialogCancel>
+            <Button
+              className="primary-button"
+              disabled={
+                archiveBusy ||
+                restoreBusy ||
+                archiveReason.trim().length < 5 ||
+                (archiveAction === "archive" &&
+                  archiveConfirmation !== "EXCLUIR")
+              }
+              onClick={() => {
+                const reason = archiveReason.trim();
+                if (reason.length < 5) {
+                  toast.error("Informe um motivo com pelo menos 5 caracteres.");
+                  return;
+                }
+                if (archiveAction === "archive") {
+                  if (archiveConfirmation !== "EXCLUIR") {
+                    toast.error('Digite exatamente "EXCLUIR" para confirmar.');
+                    return;
+                  }
+                  onArchive?.(reason, "EXCLUIR");
+                } else if (archiveAction === "restore") {
+                  onRestore?.(reason);
+                }
+              }}
+            >
+              {archiveBusy || restoreBusy
+                ? "Processando…"
+                : archiveAction === "archive"
+                  ? "Arquivar rascunho"
+                  : "Restaurar rascunho"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 function ReportsPage() {

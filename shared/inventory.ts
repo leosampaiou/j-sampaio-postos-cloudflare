@@ -69,6 +69,104 @@ export function roundLiters(value: number): number {
   return Math.round(value * 1000) / 1000;
 }
 
+export type ClosureTankSaleRecord = {
+  tankId: number;
+  liters: number | string;
+  fuelType: string;
+  tankFuelType: string;
+  closureDate: string;
+  stockStartDate: string;
+};
+
+export function aggregateClosureSalesByTank(
+  rows: readonly ClosureTankSaleRecord[]
+): Map<number, number> {
+  const salesByTank = new Map<number, number>();
+  for (const row of rows) {
+    const liters = Number(row.liters);
+    if (
+      row.fuelType !== row.tankFuelType ||
+      row.closureDate < row.stockStartDate ||
+      !Number.isFinite(liters) ||
+      liters <= 0
+    )
+      continue;
+    salesByTank.set(
+      row.tankId,
+      roundLiters((salesByTank.get(row.tankId) ?? 0) - liters)
+    );
+  }
+  return salesByTank;
+}
+
+type ClosureStockMovement = {
+  id: number;
+  tankId: number;
+  sourceClosureId: number | null;
+  sourcePumpId: number | null;
+  sourceKey: string;
+  movementType: string;
+  quantityLiters: number | string;
+  occurredAt: Date | string;
+};
+
+function movementTimestamp(value: Date | string) {
+  return value instanceof Date ? value.getTime() : new Date(value).getTime();
+}
+
+function movementOrder<T extends ClosureStockMovement>(left: T, right: T) {
+  const timeDifference =
+    movementTimestamp(left.occurredAt) - movementTimestamp(right.occurredAt);
+  return timeDifference || left.id - right.id;
+}
+
+export function consolidateClosureStockMovements<
+  T extends ClosureStockMovement,
+>(rows: readonly T[]): T[] {
+  const ungrouped: T[] = [];
+  const groups = new Map<string, T[]>();
+
+  for (const row of rows) {
+    if (
+      row.sourceClosureId === null ||
+      (row.movementType !== "sale" && row.movementType !== "correction")
+    ) {
+      ungrouped.push(row);
+      continue;
+    }
+
+    const revision = /^closure:\d+:revision:(\d+):/.exec(row.sourceKey)?.[1];
+    const sync = /^closure:\d+:revision:(\d+):sync:(\d+):/.exec(row.sourceKey);
+    const eventKey = sync
+      ? `revision:${sync[1]}:sync:${sync[2]}`
+      : revision
+        ? `revision:${revision}`
+        : `time:${new Date(movementTimestamp(row.occurredAt)).toISOString()}`;
+    const key = `${row.sourceClosureId}:${row.tankId}:${eventKey}`;
+    groups.set(key, [...(groups.get(key) ?? []), row]);
+  }
+
+  for (const movements of groups.values()) {
+    const ordered = [...movements].sort(movementOrder);
+    const last = ordered[ordered.length - 1];
+    const quantity = roundLiters(
+      ordered.reduce(
+        (total, movement) => total + Number(movement.quantityLiters),
+        0
+      )
+    );
+    if (Math.abs(quantity) < 0.0005) continue;
+    ungrouped.push({
+      ...last,
+      movementType: quantity < 0 ? "sale" : "correction",
+      quantityLiters: quantity.toFixed(3),
+      sourcePumpId: null,
+    } as T);
+  }
+
+  return ungrouped.sort(movementOrder);
+}
+
 export function calendarDaysInclusive(from: string, to: string): number {
   const parse = (value: string) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;

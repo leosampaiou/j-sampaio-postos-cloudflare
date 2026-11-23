@@ -1,5 +1,15 @@
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNull,
+  lte,
+  sql,
+} from "drizzle-orm";
 import { z } from "zod";
 import {
   appUsers,
@@ -22,6 +32,7 @@ import { FUEL_TYPES } from "../../shared/fuel";
 import {
   autonomyInDays,
   classifyStockHealth,
+  consolidateClosureStockMovements,
   roundLiters,
   summarizeTankSalesWindow,
   suggestedReplenishmentLiters,
@@ -195,6 +206,7 @@ export const inventoryRouter = router({
             and(
               eq(closures.unitId, ctx.user.unitId),
               eq(closures.status, "finalizado"),
+              isNull(closures.deletedAt),
               gte(closures.closureDate, from30),
               lte(closures.closureDate, today)
             )
@@ -281,9 +293,7 @@ export const inventoryRouter = router({
       );
       const activePumps = pumps.filter(pump => pump.active);
       const activePumpIds = new Set(activePumps.map(pump => pump.id));
-      const movementsByTank = new Map(
-        movements.map(row => [row.tankId, row])
-      );
+      const movementsByTank = new Map(movements.map(row => [row.tankId, row]));
       const measurementsByTank = new Map(
         measurements.map(row => [row.tankId, row])
       );
@@ -694,8 +704,8 @@ export const inventoryRouter = router({
     )
     .mutation(async ({ input, ctx }) => {
       const db = ctx.db;
-      const [[pump], [tank]] = await Promise.all([
-        db
+      await db.transaction(async tx => {
+        const [pump] = await tx
           .select()
           .from(fuelPumps)
           .where(
@@ -705,8 +715,14 @@ export const inventoryRouter = router({
               eq(fuelPumps.active, true)
             )
           )
-          .limit(1),
-        db
+          .limit(1)
+          .for("update");
+        if (!pump)
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Bico ativo não encontrado.",
+          });
+        const [tank] = await tx
           .select()
           .from(fuelTanks)
           .where(
@@ -716,20 +732,19 @@ export const inventoryRouter = router({
               eq(fuelTanks.active, true)
             )
           )
-          .limit(1),
-      ]);
-      if (!pump || !tank)
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Bico ou tanque ativo não encontrado.",
-        });
-      if (pump.fuelType !== tank.fuelType)
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message:
-            "O combustível do bico precisa corresponder ao combustível do tanque.",
-        });
-      await db.transaction(async tx => {
+          .limit(1)
+          .for("update");
+        if (!tank)
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Tanque ativo não encontrado.",
+          });
+        if (pump.fuelType !== tank.fuelType)
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              "O combustível do bico precisa corresponder ao combustível do tanque.",
+          });
         const [current] = await tx
           .select({ tankId: tankPumpAssignments.tankId })
           .from(tankPumpAssignments)
@@ -1196,19 +1211,22 @@ export const inventoryRouter = router({
         .innerJoin(appUsers, eq(stockMovements.createdBy, appUsers.id))
         .where(eq(stockMovements.unitId, ctx.user.unitId))
         .orderBy(asc(stockMovements.occurredAt), asc(stockMovements.id));
-      const balances = new Map<number, number>();
-      const withBalance = all.map(row => {
-        const before = balances.get(row.movement.tankId) ?? 0;
-        const after = roundLiters(
-          before + safeNumber(row.movement.quantityLiters)
-        );
-        balances.set(row.movement.tankId, after);
-        return {
+      const summarized = consolidateClosureStockMovements(
+        all.map(row => ({
           ...row.movement,
           tankName: row.tankName,
           tankCode: row.tankCode,
           fuelType: row.fuelType,
           responsible: row.responsible,
+        }))
+      );
+      const balances = new Map<number, number>();
+      const withBalance = summarized.map(row => {
+        const before = balances.get(row.tankId) ?? 0;
+        const after = roundLiters(before + safeNumber(row.quantityLiters));
+        balances.set(row.tankId, after);
+        return {
+          ...row,
           balanceAfterLiters: after,
         };
       });

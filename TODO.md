@@ -723,7 +723,7 @@ Restrições:
 - Não acessar configurações.
 - Não cadastrar usuários.
 - Não alterar preços.
-- Não excluir fechamentos.
+- Não excluir fechamentos; somente o administrador pode arquivar e restaurar rascunhos elegíveis, com motivo e confirmação.
 - Não visualizar dados restritos de outros funcionários.
 - Não alterar fechamentos finalizados sem autorização.
 
@@ -753,7 +753,7 @@ Restrições:
 
 - Não criar administradores.
 - Não alterar permissões de administradores.
-- Não excluir permanentemente registros financeiros.
+- Não excluir permanentemente registros financeiros; gerente não pode arquivar nem restaurar fechamentos.
 - Não modificar configurações exclusivas do administrador.
 
 10.3 ADMINISTRADOR
@@ -900,7 +900,9 @@ Registrar:
 - Data e horário.
 - Justificativa.
 
-Fechamentos finalizados não poderão ser excluídos silenciosamente.
+Fechamentos finalizados não poderão ser excluídos silenciosamente nem arquivados.
+
+Somente um administrador pode excluir logicamente um rascunho nunca finalizado/reaberto, após informar motivo obrigatório e digitar `EXCLUIR` no aviso de confirmação. A autorização, a elegibilidade, a unidade e a proteção contra referências a movimentos de estoque ou divergências devem ser verificadas novamente no servidor, dentro de transação com bloqueio da linha. O evento de auditoria deve preservar ator, horário, objeto, motivo, valor anterior e novo. O rascunho continua armazenado e pode ser restaurado pelo administrador mediante justificativa. Fechamentos financeiros finalizados, reabertos e registros vinculados ficam protegidos; os filhos e o histórico não são apagados. O histórico normal não mostra itens arquivados; o filtro administrativo permite consultá-los. A restauração deve falhar de forma clara se outro fechamento ativo já ocupar a mesma unidade/data/turno.
 
 Qualquer correção deverá gerar um novo registro de auditoria.
 
@@ -1365,3 +1367,15 @@ Evidências em 23/11/2026: o cálculo considera todos os fechamentos finalizados
 - `pnpm check` passou; `pnpm test` passou com 71 testes em 16 arquivos; `pnpm build` passou com o aviso existente de chunk acima de 500 kB; Prettier nos fontes alterados e `git diff --check` passaram.
 - O Preview foi inspecionado em 1280×900 e 375×812 na tela de acesso. As telas autenticadas foram revisadas por código, mas não visualmente, pois esta rodada não usou credenciais nem dados de teste.
 - Nenhum commit, push ou publicação foi feito nesta rodada.
+
+## Exclusão lógica administrativa e baixa total por tanque — 23/11/2026
+
+### [ ] Arquivar e restaurar rascunhos com trilha de auditoria
+- Permitir somente ao administrador arquivar logicamente fechamentos em `rascunho` que nunca tenham sido finalizados ou reabertos. A API exige confirmação textual `EXCLUIR` e justificativa obrigatória, bloqueia a linha, confirma unidade/status e rejeita qualquer referência a estoque ou divergência. Arquivamento, marca temporal e evento de auditoria (ator, horário, alvo, justificativa, valor anterior/novo) são atômicos. Não excluir filhos, registros financeiros, fechamentos finalizados/reabertos ou seus históricos.
+- O histórico padrão omite itens arquivados. A interface administrativa permite filtrar e restaurar itens com justificativa; a API limita e valida a restauração, inclusive conflito de unicidade com um fechamento ativo da mesma unidade/data/turno. Revisões e sincronizações offline não podem editar ou finalizar itens arquivados.
+- A migration PostgreSQL acrescenta apenas o marcador de exclusão lógica e substitui a unicidade global por unicidade parcial dos registros ativos. Preparar migration versionada e cobertura de testes isolados; não aplicá-la ao Neon ou banco compartilhado sem nova confirmação. Não fazer commit/push ou publicar.
+
+### [ ] Consolidar movimentos de fechamento por tanque
+- Ao finalizar ou reconciliar uma revisão, somar as vendas de todos os bicos mapeados ao mesmo tanque e gravar apenas a baixa/delta líquido por tanque; preservar dados detalhados por bico para fechamento e autonomia.
+- Reconciliações devem considerar movimentos legados e revisões anteriores por fechamento/tanque, criar movimentos compensatórios para mudanças e usar chaves idempotentes. O histórico/API agrupa movimentos existentes por fechamento/tanque/revisão para exibir totais sem editar, apagar ou recriar os dados já armazenados.
+- Cobrir os agrupamentos, sinais/deltas e preservação de movimentos históricos por testes unitários; rodar `pnpm check`, `pnpm test`, `pnpm build`, Prettier e `git diff --check`. Não conectar ao banco real, aplicar migrations, publicar ou enviar código ao remoto.

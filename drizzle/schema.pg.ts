@@ -20,7 +20,11 @@ export const app_user_role = pgEnum("app_user_role", [
   "administrador",
 ]);
 export const fuel_type = pgEnum("fuel_type", ["gasolina_comum", "diesel_s10"]);
-export const closure_shift = pgEnum("closure_shift", ["manha", "tarde", "noite"]);
+export const closure_shift = pgEnum("closure_shift", [
+  "manha",
+  "tarde",
+  "noite",
+]);
 export const closure_status = pgEnum("closure_status", [
   "rascunho",
   "aguardando_conferencia",
@@ -76,7 +80,9 @@ export const units = pgTable("units", {
   state: varchar("state", { length: 2 }).notNull(),
   postalCode: varchar("postalCode", { length: 12 }).notNull(),
   active: boolean("active").default(true).notNull(),
-  createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+  createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
 });
 
 export const appUsers = pgTable(
@@ -91,7 +97,9 @@ export const appUsers = pgTable(
     passwordHash: varchar("passwordHash", { length: 255 }).notNull(),
     role: app_user_role("role").default("frentista").notNull(),
     active: boolean("active").default(true).notNull(),
-    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" })
+      .defaultNow()
+      .notNull(),
     lastLoginAt: timestamp("lastLoginAt", { withTimezone: true, mode: "date" }),
   },
   t => [index("appUsers_unit_idx").on(t.unitId)]
@@ -106,9 +114,14 @@ export const appSessions = pgTable(
       .references(() => appUsers.id, { onDelete: "cascade" }),
     tokenHash: varchar("tokenHash", { length: 64 }).notNull().unique(),
     csrfToken: varchar("csrfToken", { length: 64 }).notNull(),
-    expiresAt: timestamp("expiresAt", { withTimezone: true, mode: "date" }).notNull(),
+    expiresAt: timestamp("expiresAt", {
+      withTimezone: true,
+      mode: "date",
+    }).notNull(),
     revokedAt: timestamp("revokedAt", { withTimezone: true, mode: "date" }),
-    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" })
+      .defaultNow()
+      .notNull(),
   },
   t => [index("appSessions_user_idx").on(t.userId)]
 );
@@ -125,8 +138,12 @@ export const employees = pgTable(
     }),
     fullName: varchar("fullName", { length: 160 }).notNull(),
     active: boolean("active").default(true).notNull(),
-    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" })
+      .defaultNow()
+      .notNull(),
   },
   t => [
     index("employees_unit_idx").on(t.unitId),
@@ -159,7 +176,9 @@ export const fuelPrices = pgTable(
       .references(() => units.id),
     fuelType: fuel_type("fuelType").notNull(),
     priceCents: integer("priceCents").notNull(),
-    effectiveAt: timestamp("effectiveAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+    effectiveAt: timestamp("effectiveAt", { withTimezone: true, mode: "date" })
+      .defaultNow()
+      .notNull(),
     createdBy: integer("createdBy")
       .notNull()
       .references(() => appUsers.id),
@@ -177,7 +196,9 @@ export const unitSettings = pgTable(
     settingKey: varchar("settingKey", { length: 80 }).notNull(),
     settingValue: text("settingValue").notNull(),
     updatedBy: integer("updatedBy").references(() => appUsers.id),
-    updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" })
+      .defaultNow()
+      .notNull(),
   },
   t => [uniqueIndex("unit_setting_unique").on(t.unitId, t.settingKey)]
 );
@@ -212,15 +233,18 @@ export const closures = pgTable(
     finalizedAt: timestamp("finalizedAt", { withTimezone: true, mode: "date" }),
     reopenedAt: timestamp("reopenedAt", { withTimezone: true, mode: "date" }),
     revision: integer("revision").default(1).notNull(),
-    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+    deletedAt: timestamp("deletedAt", { withTimezone: true, mode: "date" }),
+    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" })
+      .defaultNow()
+      .notNull(),
   },
   t => [
-    uniqueIndex("closure_unit_date_shift_unique").on(
-      t.unitId,
-      t.closureDate,
-      t.shift
-    ),
+    uniqueIndex("closure_unit_date_shift_active_unique")
+      .on(t.unitId, t.closureDate, t.shift)
+      .where(sql`${t.deletedAt} IS NULL`),
     index("closure_date_idx").on(t.unitId, t.closureDate),
     index("closure_employee_idx").on(t.employeeId),
   ]
@@ -283,7 +307,9 @@ export const auditEvents = pgTable(
     beforeValue: text("beforeValue"),
     afterValue: text("afterValue"),
     reason: text("reason"),
-    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" })
+      .defaultNow()
+      .notNull(),
   },
   t => [
     index("audit_unit_created_idx").on(t.unitId, t.createdAt),
@@ -338,12 +364,19 @@ export const fuelTanks = pgTable(
       .notNull(),
     staleAfterDays: integer("staleAfterDays").default(7).notNull(),
     active: boolean("active").default(true).notNull(),
-    lastSuppliedAt: timestamp("lastSuppliedAt", { withTimezone: true, mode: "date" }),
+    lastSuppliedAt: timestamp("lastSuppliedAt", {
+      withTimezone: true,
+      mode: "date",
+    }),
     createdBy: integer("createdBy")
       .notNull()
       .references(() => appUsers.id),
-    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" })
+      .defaultNow()
+      .notNull(),
   },
   t => [
     uniqueIndex("fuel_tank_unit_code_unique").on(t.unitId, t.code),
@@ -367,7 +400,9 @@ export const tankPumpAssignments = pgTable(
     createdBy: integer("createdBy")
       .notNull()
       .references(() => appUsers.id),
-    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" })
+      .defaultNow()
+      .notNull(),
   },
   t => [
     uniqueIndex("tank_pump_one_assignment_unique").on(t.pumpId),
@@ -398,11 +433,15 @@ export const stockMovements = pgTable(
     acquisitionValueCents: integer("acquisitionValueCents"),
     documentKey: varchar("documentKey", { length: 420 }),
     notes: text("notes"),
-    occurredAt: timestamp("occurredAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+    occurredAt: timestamp("occurredAt", { withTimezone: true, mode: "date" })
+      .defaultNow()
+      .notNull(),
     createdBy: integer("createdBy")
       .notNull()
       .references(() => appUsers.id),
-    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" })
+      .defaultNow()
+      .notNull(),
   },
   t => [
     uniqueIndex("stock_movement_invoice_unique").on(
@@ -441,12 +480,17 @@ export const tankMeasurements = pgTable(
       scale: 3,
     }).notNull(),
     differencePercent: numeric("differencePercent", { precision: 9, scale: 3 }),
-    measuredAt: timestamp("measuredAt", { withTimezone: true, mode: "date" }).notNull(),
+    measuredAt: timestamp("measuredAt", {
+      withTimezone: true,
+      mode: "date",
+    }).notNull(),
     notes: text("notes"),
     measuredBy: integer("measuredBy")
       .notNull()
       .references(() => appUsers.id),
-    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" })
+      .defaultNow()
+      .notNull(),
   },
   t => [
     index("tank_measurement_latest_idx").on(t.unitId, t.tankId, t.measuredAt),
@@ -464,7 +508,9 @@ export const closureParticipants = pgTable(
       .notNull()
       .references(() => employees.id),
     sharePercent: integer("sharePercent").notNull(),
-    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" })
+      .defaultNow()
+      .notNull(),
   },
   t => [
     uniqueIndex("closure_participant_unique").on(t.closureId, t.employeeId),
@@ -491,8 +537,12 @@ export const discrepancyCases = pgTable(
     evidenceKey: varchar("evidenceKey", { length: 420 }),
     decisionBy: integer("decisionBy").references(() => appUsers.id),
     decisionAt: timestamp("decisionAt", { withTimezone: true, mode: "date" }),
-    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" })
+      .defaultNow()
+      .notNull(),
   },
   t => [
     uniqueIndex("discrepancy_closure_unique").on(t.closureId),
@@ -512,7 +562,9 @@ export const discrepancyAllocations = pgTable(
       .references(() => employees.id),
     closureRevision: integer("closureRevision").notNull(),
     allocatedCents: integer("allocatedCents").notNull(),
-    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" })
+      .defaultNow()
+      .notNull(),
   },
   t => [
     uniqueIndex("discrepancy_allocation_revision_unique").on(
@@ -550,8 +602,12 @@ export const payrollAdjustmentReviews = pgTable(
     createdBy: integer("createdBy")
       .notNull()
       .references(() => appUsers.id),
-    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" })
+      .defaultNow()
+      .notNull(),
   },
   t => [
     uniqueIndex("payroll_review_case_employee_revision_unique").on(

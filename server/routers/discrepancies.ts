@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, gte, inArray, lte, or } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
 import { z } from "zod";
 import {
   appUsers,
@@ -77,7 +77,8 @@ export const discrepanciesRouter = router({
       .where(
         and(
           eq(closures.unitId, ctx.user.unitId),
-          eq(closures.status, "finalizado")
+          eq(closures.status, "finalizado"),
+          isNull(closures.deletedAt)
         )
       );
     const existing = await db
@@ -182,6 +183,7 @@ export const discrepanciesRouter = router({
       const conditions: any[] = [
         eq(discrepancyCases.unitId, ctx.user.unitId),
         eq(closures.unitId, ctx.user.unitId),
+        isNull(closures.deletedAt),
         eq(employees.unitId, ctx.user.unitId),
       ];
       if (input?.status)
@@ -554,6 +556,7 @@ export const discrepanciesRouter = router({
             eq(closures.unitId, ctx.user.unitId),
             gte(closures.closureDate, `${input.month}-01`),
             lte(closures.closureDate, `${input.month}-31`),
+            isNull(closures.deletedAt),
             or(
               eq(closures.status, "finalizado"),
               eq(closures.status, "aguardando_conferencia")
@@ -717,6 +720,7 @@ export const discrepanciesRouter = router({
             eq(closures.unitId, ctx.user.unitId),
             gte(closures.closureDate, from),
             lte(closures.closureDate, today),
+            isNull(closures.deletedAt),
             or(
               eq(closures.status, "finalizado"),
               eq(closures.status, "aguardando_conferencia")

@@ -8,12 +8,13 @@ import {
   discrepancyAllocations,
   discrepancyCases,
   employees,
+  fuelPumps,
   fuelTanks,
   stockMovements,
   tankPumpAssignments,
 } from "../drizzle/schema.pg";
 import { allocateCentsByShare } from "../shared/discrepancyAllocation";
-import { roundLiters } from "../shared/inventory";
+import { aggregateClosureSalesByTank, roundLiters } from "../shared/inventory";
 
 const amountOf = (value: unknown) => Number(value ?? 0);
 
@@ -33,6 +34,12 @@ export async function syncFinalizedClosure(
       code: "NOT_FOUND",
       message: "Fechamento não encontrado durante a integração.",
     });
+  if (closure.deletedAt || closure.status !== "finalizado")
+    throw new TRPCError({
+      code: "CONFLICT",
+      message:
+        "Somente fechamentos ativos e finalizados podem gerar movimentos de estoque.",
+    });
 
   const nozzles = await tx
     .select()
@@ -48,6 +55,26 @@ export async function syncFinalizedClosure(
 
   // Until a manager configures any tank, preserve the current closing workflow without manufacturing stock.
   if (allTanks.length) {
+    const nozzleRows = nozzles as Array<typeof closureNozzles.$inferSelect>;
+    const pumpIds = [...new Set(nozzleRows.map(nozzle => nozzle.pumpId))].sort(
+      (left, right) => left - right
+    );
+    for (const pumpId of pumpIds) {
+      const [lockedPump] = await tx
+        .select({ id: fuelPumps.id })
+        .from(fuelPumps)
+        .where(
+          and(eq(fuelPumps.id, pumpId), eq(fuelPumps.unitId, input.unitId))
+        )
+        .limit(1)
+        .for("update");
+      if (!lockedPump)
+        throw new TRPCError({
+          code: "CONFLICT",
+          message:
+            "Um bico do fechamento não pertence mais a esta unidade. Nenhuma baixa foi gravada.",
+        });
+    }
     const assignments = await tx
       .select()
       .from(tankPumpAssignments)
@@ -77,15 +104,43 @@ export async function syncFinalizedClosure(
       });
     }
 
-    // Lock configured tanks in stable order so receipts, writeoffs, measurements and sales
-    // serialize their stock movement writes and cannot observe conflicting capacity checks.
-    const tankIdsSet = new Set<number>();
-    for (const nozzle of nozzles as Array<typeof closureNozzles.$inferSelect>) {
-      const assignment = assignmentByPump.get(nozzle.pumpId);
-      const tank = assignment ? tankById.get(assignment.tankId) : undefined;
-      if (amountOf(nozzle.liters) > 0 && tank) tankIdsSet.add(tank.id);
-    }
-    const tankIds = [...tankIdsSet].sort((a: number, b: number) => a - b);
+    const desiredByTank = aggregateClosureSalesByTank(
+      nozzles.flatMap((nozzle: (typeof nozzles)[number]) => {
+        const assignment = assignmentByPump.get(nozzle.pumpId);
+        const tank = assignment ? tankById.get(assignment.tankId) : undefined;
+        if (!assignment || !tank || tank.fuelType !== nozzle.fuelType)
+          return [];
+        return [
+          {
+            tankId: tank.id,
+            liters: amountOf(nozzle.liters),
+            fuelType: nozzle.fuelType,
+            tankFuelType: tank.fuelType,
+            closureDate: closure.closureDate,
+            stockStartDate: tank.stockStartDate,
+          },
+        ];
+      })
+    );
+    const previousTankRows = await tx
+      .select({ tankId: stockMovements.tankId })
+      .from(stockMovements)
+      .where(
+        and(
+          eq(stockMovements.unitId, input.unitId),
+          eq(stockMovements.sourceClosureId, closure.id)
+        )
+      );
+    const tankIds = [
+      ...new Set([
+        ...desiredByTank.keys(),
+        ...previousTankRows.map(
+          (movement: { tankId: number }) => movement.tankId
+        ),
+      ]),
+    ].sort((a, b) => a - b);
+
+    // Lock every current and historical tank in stable order before reconciling.
     for (const tankId of tankIds) {
       const [lockedTank] = await tx
         .select({ id: fuelTanks.id })
@@ -99,7 +154,7 @@ export async function syncFinalizedClosure(
         throw new TRPCError({
           code: "CONFLICT",
           message:
-            "Um tanque foi removido durante a finalização. Nenhuma baixa foi gravada.",
+            "Um tanque relacionado ao fechamento não pertence mais a esta unidade. Nenhuma baixa foi gravada.",
         });
     }
 
@@ -112,62 +167,38 @@ export async function syncFinalizedClosure(
           eq(stockMovements.sourceClosureId, closure.id)
         )
       );
-    const priorByPumpTank = new Map<string, number>();
+    const priorByTank = new Map<number, number>();
     for (const movement of previous) {
-      if (movement.sourcePumpId === null) continue;
-      const key = `${movement.sourcePumpId}:${movement.tankId}`;
-      priorByPumpTank.set(
-        key,
+      priorByTank.set(
+        movement.tankId,
         roundLiters(
-          (priorByPumpTank.get(key) ?? 0) + amountOf(movement.quantityLiters)
+          (priorByTank.get(movement.tankId) ?? 0) +
+            amountOf(movement.quantityLiters)
         )
       );
     }
-    const desiredByPumpTank = new Map<
-      string,
-      { pumpId: number; tankId: number; liters: number; pumpNumber: string }
-    >();
-    for (const nozzle of nozzles) {
-      const assignment = assignmentByPump.get(nozzle.pumpId);
-      const tank = assignment ? tankById.get(assignment.tankId) : undefined;
-      if (!assignment || !tank || tank.fuelType !== nozzle.fuelType) continue;
-      if (closure.closureDate < tank.stockStartDate) continue;
-      desiredByPumpTank.set(`${nozzle.pumpId}:${tank.id}`, {
-        pumpId: nozzle.pumpId,
-        tankId: tank.id,
-        liters: -amountOf(nozzle.liters),
-        pumpNumber: nozzle.pumpNumber,
-      });
-    }
-    const pairs = new Set([
-      ...priorByPumpTank.keys(),
-      ...desiredByPumpTank.keys(),
+    const tankIdsToReconcile = new Set([
+      ...priorByTank.keys(),
+      ...desiredByTank.keys(),
     ]);
-    for (const pair of pairs) {
-      const [pumpIdText, tankIdText] = pair.split(":");
-      const pumpId = Number(pumpIdText);
-      const tankId = Number(tankIdText);
-      const current = priorByPumpTank.get(pair) ?? 0;
-      const desired = desiredByPumpTank.get(pair)?.liters ?? 0;
+    const syncSequence = previous.length;
+    for (const tankId of tankIdsToReconcile) {
+      const current = priorByTank.get(tankId) ?? 0;
+      const desired = desiredByTank.get(tankId) ?? 0;
       const delta = roundLiters(desired - current);
       if (Math.abs(delta) < 0.0005) continue;
-      const pumpNumber =
-        desiredByPumpTank.get(pair)?.pumpNumber ??
-        nozzles.find((item: (typeof nozzles)[number]) => item.pumpId === pumpId)
-          ?.pumpNumber ??
-        `Bico ${pumpId}`;
       await tx.insert(stockMovements).values({
         unitId: input.unitId,
         tankId,
         movementType: delta < 0 ? "sale" : "correction",
         quantityLiters: delta.toFixed(3),
-        sourceKey: `closure:${closure.id}:revision:${closure.revision}:pump:${pumpId}:tank:${tankId}`,
+        sourceKey: `closure:${closure.id}:revision:${closure.revision}:sync:${syncSequence}:tank:${tankId}`,
         sourceClosureId: closure.id,
-        sourcePumpId: pumpId,
+        sourcePumpId: null,
         notes:
           delta < 0
-            ? `Venda do ${pumpNumber} no fechamento ${closure.closureDate}.`
-            : `Correção compensatória do ${pumpNumber} no fechamento ${closure.closureDate}.`,
+            ? `Baixa total de ${Math.abs(delta).toFixed(3)} L do fechamento ${closure.closureDate} (${closure.shift}).`
+            : `Correção compensatória de ${delta.toFixed(3)} L do fechamento ${closure.closureDate} (${closure.shift}).`,
         occurredAt: closure.finalizedAt ?? new Date(),
         createdBy: input.userId,
       });

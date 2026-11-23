@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   MINIMUM_AUTONOMY_SAMPLE_DAYS,
+  aggregateClosureSalesByTank,
   autonomyInDays,
   calendarDaysInclusive,
   classifyStockHealth,
+  consolidateClosureStockMovements,
   summarizeTankSalesWindow,
   suggestedReplenishmentLiters,
   type TankSalesRecord,
@@ -346,5 +348,124 @@ describe("inventory estimates", () => {
         discrepancyAlertPercent: 2,
       })
     ).toBe("atencao");
+  });
+});
+
+describe("closure stock movement consolidation", () => {
+  it("sums nozzle sales by compatible tank within the tank's stock period", () => {
+    const totals = aggregateClosureSalesByTank([
+      {
+        tankId: 10,
+        liters: "32.125",
+        fuelType: "gasolina_comum",
+        tankFuelType: "gasolina_comum",
+        closureDate: "2026-11-20",
+        stockStartDate: "2026-11-01",
+      },
+      {
+        tankId: 10,
+        liters: 20,
+        fuelType: "gasolina_comum",
+        tankFuelType: "gasolina_comum",
+        closureDate: "2026-11-20",
+        stockStartDate: "2026-11-01",
+      },
+      {
+        tankId: 20,
+        liters: 14.5,
+        fuelType: "diesel_s10",
+        tankFuelType: "diesel_s10",
+        closureDate: "2026-11-20",
+        stockStartDate: "2026-11-01",
+      },
+      {
+        tankId: 30,
+        liters: 100,
+        fuelType: "gasolina_comum",
+        tankFuelType: "diesel_s10",
+        closureDate: "2026-11-20",
+        stockStartDate: "2026-11-01",
+      },
+      {
+        tankId: 40,
+        liters: 100,
+        fuelType: "gasolina_comum",
+        tankFuelType: "gasolina_comum",
+        closureDate: "2026-10-31",
+        stockStartDate: "2026-11-01",
+      },
+    ]);
+
+    expect([...totals]).toEqual([
+      [10, -52.125],
+      [20, -14.5],
+    ]);
+  });
+
+  it("summarizes legacy per-nozzle ledger rows by closure, tank and revision", () => {
+    const occurredAt = new Date("2026-11-20T17:00:00.000Z");
+    const rows = [
+      {
+        id: 1,
+        tankId: 10,
+        sourceClosureId: null,
+        sourcePumpId: null,
+        sourceKey: "opening:10",
+        movementType: "opening",
+        quantityLiters: "500.000",
+        occurredAt,
+      },
+      {
+        id: 2,
+        tankId: 10,
+        sourceClosureId: 7,
+        sourcePumpId: 1,
+        sourceKey: "closure:7:revision:1:pump:1:tank:10",
+        movementType: "sale",
+        quantityLiters: "-32.000",
+        occurredAt,
+      },
+      {
+        id: 3,
+        tankId: 10,
+        sourceClosureId: 7,
+        sourcePumpId: 2,
+        sourceKey: "closure:7:revision:1:pump:2:tank:10",
+        movementType: "sale",
+        quantityLiters: "-18.500",
+        occurredAt,
+      },
+      {
+        id: 4,
+        tankId: 10,
+        sourceClosureId: 7,
+        sourcePumpId: 2,
+        sourceKey: "closure:7:revision:2:pump:2:tank:10",
+        movementType: "correction",
+        quantityLiters: "5.000",
+        occurredAt: new Date("2026-11-21T17:00:00.000Z"),
+      },
+    ];
+
+    const summarized = consolidateClosureStockMovements(rows);
+    const closureMovements = summarized.filter(
+      row => row.sourceClosureId === 7
+    );
+
+    expect(closureMovements).toHaveLength(2);
+    expect(closureMovements[0]).toMatchObject({
+      movementType: "sale",
+      quantityLiters: "-50.500",
+      sourcePumpId: null,
+    });
+    expect(closureMovements[1]).toMatchObject({
+      movementType: "correction",
+      quantityLiters: "5.000",
+      sourcePumpId: null,
+    });
+    expect(summarized[0]).toMatchObject({
+      sourceClosureId: null,
+      quantityLiters: "500.000",
+    });
   });
 });

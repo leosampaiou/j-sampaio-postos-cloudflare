@@ -118,6 +118,18 @@ export async function resetIntegrationDatabase(
     >(`select to_regclass('public."loginAttemptLimits"') as "limiterExists"`);
     if (!limiterExists)
       await applyMigration(client, "0001_security_hardening.sql");
+    const [{ deletedAtExists }] = await client.unsafe<
+      { deletedAtExists: string | null }[]
+    >(
+      `select column_name as "deletedAtExists" from information_schema.columns where table_schema = 'public' and table_name = 'closures' and column_name = 'deletedAt' limit 1`
+    );
+    const [{ activeIndexExists }] = await client.unsafe<
+      { activeIndexExists: string | null }[]
+    >(
+      `select to_regclass('public.closure_unit_date_shift_active_unique') as "activeIndexExists"`
+    );
+    if (!deletedAtExists || !activeIndexExists)
+      await applyMigration(client, "0002_closure_soft_delete.sql");
     const tables = TABLES.map(table => `"${table}"`).join(", ");
     await client.unsafe(`TRUNCATE TABLE ${tables} RESTART IDENTITY CASCADE`);
   } finally {
@@ -135,7 +147,9 @@ function actorFromResponse(
   const setCookie = responseHeaders.get("set-cookie") ?? "";
   const token = parseCookie(setCookie)[APP_SESSION_COOKIE];
   if (!token)
-    throw new Error("O router não devolveu o cookie de sessão no bootstrap/login.");
+    throw new Error(
+      "O router não devolveu o cookie de sessão no bootstrap/login."
+    );
   return {
     user,
     username,
@@ -187,7 +201,10 @@ export class IntegrationHarness {
       method: "POST",
       headers,
     });
-    const context = await createContext({ req, resHeaders: responseHeaders }, this.env);
+    const context = await createContext(
+      { req, resHeaders: responseHeaders },
+      this.env
+    );
     return {
       caller: appRouter.createCaller(context),
       context,

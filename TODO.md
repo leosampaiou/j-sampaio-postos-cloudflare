@@ -1277,3 +1277,41 @@ Nenhum deploy, escrita remota, DDL, acesso ao MySQL antigo ou aos objetos antigo
 - Validar com `pnpm check`, `pnpm test`, `pnpm build`, Prettier e revisão do diff. Esta entrega não altera banco/schema, não publica/deploya e não cria commit/push.
 
 Evidências em 22/11/2026: a amostra exige um fechamento `manha` (13h) e um `noite` (22h) por dia, ignora vendas `tarde` apenas nesta regra e mantém mínimo de três dias completos; regressões cobrem ausência, duplicidade, bico transferido e vendas da tarde. A área apresenta as quatro seções previstas, com operações, permissões, consultas, filtros, comprovantes e exportações preservados no código. `pnpm check`, `pnpm test` (67 testes/15 arquivos), `pnpm build`, Prettier e `git diff --check` passaram; o build mantém aviso de chunk acima de 500 kB. Nenhuma alteração de banco/schema, deploy, commit ou push foi feita.
+
+
+## Auditoria de segurança e desempenho — solicitação de 22/11/2026
+
+### [ ] IDs UUID e migração preservadora
+- Substituir IDs SERIAL por UUID v4 criptograficamente seguro (preferencialmente `gen_random_uuid()`) nas entidades próprias e converter integralmente PKs, FKs, tipos TypeScript, validações Zod, contratos tRPC, consultas, frontend e idempotência; não deixar relações incompatíveis nem tratar UUID como autorização.
+- Antes de executar migration, analisar FKs e dados; preservar registros e relacionamentos; não realizar alteração destrutiva; documentar plano, execução e rollback. Documentar exceções técnicas justificadas.
+
+### [ ] Login e proteção contra força bruta
+- Substituir o contador em `Map` por rate limiting compartilhado e compatível com recursos Cloudflare/arquitetura já existente, considerando tentativas por IP e conta, janela, atraso progressivo, ataques distribuídos e enumeração; não depender apenas da memória de um Worker nem introduzir Redis/infra paga sem necessidade comprovada; preservar hashes e verificação de senha.
+
+### [ ] Vínculo funcionário–usuário e isolamento por unidade
+- Aplicar índice único parcial que permita NULL, bloqueio transacional, atualização condicional, conflito explícito, atomicidade entre criação, vínculo e auditoria, com teste de concorrência.
+- Revisar consultas e mutations de fechamentos, funcionários, tanques, bombas, movimentos, medições, divergências, rateios, auditoria, arquivos, relatórios e configurações; autorização no servidor, sem confiar em IDs do frontend. Avaliar constraints compostas e RLS somente se compatíveis e sem vazamento entre requisições.
+
+### [x] Arquivos R2
+- Manter o bucket privado; validar autorização, proprietário/registro, unidade, CSRF, conteúdo real, limite efetivo antes de ler o arquivo inteiro, tipo, caminho e prevenção de sobrescrita; interromper uploads excessivos.
+
+### [ ] Cabeçalhos de segurança
+- Implementar CSP compatível com o app, HSTS, X-Content-Type-Options, Referrer-Policy, Permissions-Policy e proteção anti-clickjacking sem bloquear Preview nem usar políticas permissivas sem justificativa.
+
+### [ ] Atomicidade e integridade
+- Persistir atomicamente alterações sensíveis e eventos de auditoria quando pertencem à mesma operação, priorizando usuários, funcionários, fechamentos, estoque, divergências, rateios, revisões de folha, configurações, reaberturas e correções.
+- Revisar constraints, FKs, integridade entre unidades, tipos numéricos, índices relevantes e limpeza de sessões expiradas; não remover índices sem comprovar redundância.
+
+### [ ] Queries, paginação e otimizações PostgreSQL
+- Reduzir registros transferidos e processamento em JavaScript; otimizar dashboard/saldo de estoque, histórico de preços, divergências, relatórios, paginação e backfill com agregações SQL/lotes quando equivalentes; evitar N+1 e limites arbitrários que ocultem histórico; preservar cálculos e idempotência.
+- Avaliar índices de acordo com filtros/ordenação e medir com `EXPLAIN (ANALYZE, BUFFERS)` em banco de teste autorizado.
+
+### [ ] Frontend, testes e medição
+- Ajustar cache por natureza dos dados, invalidações seletivas, consultas repetidas e carregamento/bundle sem expor dados autenticados ou misturar usuários/unidades.
+- Criar testes de segurança, isolamento, concorrência, integridade, cálculos e desempenho; comparar antes/depois sem inventar números; executar `pnpm check`, `pnpm test`, `pnpm test:integration` quando houver banco configurado e `pnpm build`, informando limitações.
+
+### [x] Relatório técnico
+- Criar `AUDITORIA-SEGURANCA-E-PERFORMANCE.md` com achados/severidade, correções, arquitetura, migrations/índices, otimizações, frontend, testes, medições, riscos residuais, recomendações e instruções de execução/rollback.
+
+### [ ] Entrega GitHub
+- Após validação, criar commit `security: harden application and optimize database performance` e fazer push à branch de trabalho sem reescrever histórico, sem force-push, sem secrets ou temporários.

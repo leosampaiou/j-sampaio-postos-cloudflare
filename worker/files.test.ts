@@ -34,8 +34,9 @@ function fakeBucket(existing = false) {
             httpMetadata: { contentType: "application/pdf" },
           }
         : null,
-    put: vi.fn(async (key: string, value: ArrayBuffer) => {
-      stored.set(key, value);
+    put: vi.fn(async (key: string, value: ReadableStream<Uint8Array>) => {
+      const content = await new Response(value).arrayBuffer();
+      stored.set(key, content);
     }),
   };
   return { bucket, stored };
@@ -48,7 +49,12 @@ function login(role = "gerente", unitId = 1) {
 }
 function put(
   key = KEY,
-  init: { csrf?: string; type?: string; body?: Uint8Array } = {}
+  init: {
+    csrf?: string;
+    type?: string;
+    body?: Uint8Array;
+    declaredLength?: number;
+  } = {}
 ) {
   const body = init.body ?? PDF;
   return new Request(URL_BASE + key, {
@@ -56,7 +62,7 @@ function put(
     headers: {
       "x-csrf-token": init.csrf ?? "csrf-ok",
       "content-type": init.type ?? "application/pdf",
-      "content-length": String(body.byteLength),
+      "content-length": String(init.declaredLength ?? body.byteLength),
     },
     body,
   });
@@ -109,6 +115,17 @@ describe("handleFileRequest", () => {
     expect(new Uint8Array(await read.arrayBuffer())).toEqual(PDF);
   });
 
+  it("nega download quando o registro proprietário não existe", async () => {
+    login();
+    const { bucket } = fakeBucket();
+    const response = await handleFileRequest(
+      new Request(URL_BASE + KEY),
+      fakeDb(false),
+      bucket
+    );
+    expect(response.status).toBe(404);
+  });
+
   it("recusa chave de outra unidade, chave malformada e path traversal", async () => {
     login("gerente", 2);
     const { bucket } = fakeBucket();
@@ -147,7 +164,10 @@ describe("handleFileRequest", () => {
     expect((await handleFileRequest(put(), fakeDb(false), bucket)).status).toBe(
       404
     );
-    expect(bucket.put).not.toHaveBeenCalled();
+    expect((await handleFileRequest(put(), fakeDb(false), bucket)).status).toBe(
+      404
+    );
+    expect(bucket.put).toHaveBeenCalledTimes(1);
   });
 
   it("não sobrescreve objeto existente e limita o tamanho", async () => {
@@ -168,5 +188,14 @@ describe("handleFileRequest", () => {
     expect(
       (await handleFileRequest(huge, fakeDb(true), fakeBucket().bucket)).status
     ).toBe(413);
+
+    const actualOversize = new Uint8Array(10_485_761);
+    actualOversize.set(PDF);
+    const streamed = await handleFileRequest(
+      put(KEY, { body: actualOversize, declaredLength: 1 }),
+      fakeDb(true),
+      fakeBucket().bucket
+    );
+    expect(streamed.status).toBe(413);
   });
 });

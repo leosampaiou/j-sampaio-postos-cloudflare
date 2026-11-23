@@ -102,7 +102,7 @@ describe("inventory estimates", () => {
     expect(autonomyInDays(900, summary.averageDailyLiters)).toBeCloseTo(13.5);
   });
 
-  it("excludes an incomplete date instead of treating missing shifts as zero sales", () => {
+  it("uses a day with one valid closure and sums all closures on another day", () => {
     const incomplete = completeDay("2026-11-19", 1, [100, 100]).filter(
       row => row.shift !== "noite"
     );
@@ -118,12 +118,12 @@ describe("inventory estimates", () => {
       1
     );
 
-    expect(summary.coveredDays).toBe(1);
-    expect(summary.totalLiters).toBe(60);
-    expect(summary.averageDailyLiters).toBe(60);
+    expect(summary.coveredDays).toBe(2);
+    expect(summary.totalLiters).toBe(160);
+    expect(summary.averageDailyLiters).toBe(80);
   });
 
-  it("excludes a date with a duplicated shift", () => {
+  it("counts multiple valid closures even when they have the same shift", () => {
     const duplicatedShift = completeDay("2026-11-19", 1, [30, 30]).map(
       (row, index) => (index === 1 ? { ...row, shift: "manha" } : row)
     );
@@ -139,11 +139,12 @@ describe("inventory estimates", () => {
       1
     );
 
-    expect(summary.coveredDays).toBe(0);
-    expect(summary.averageDailyLiters).toBe(0);
+    expect(summary.coveredDays).toBe(1);
+    expect(summary.totalLiters).toBe(60);
+    expect(summary.averageDailyLiters).toBe(60);
   });
 
-  it("ignores afternoon sales instead of counting them in the autonomy sample", () => {
+  it("includes morning, afternoon and night closures in the same day's sales", () => {
     const twoClosures = completeDay("2026-11-19", 1, [30, 40]);
     const afternoonClosure = {
       ...twoClosures[0],
@@ -165,11 +166,12 @@ describe("inventory estimates", () => {
     );
 
     expect(summary.coveredDays).toBe(1);
-    expect(summary.records).toBe(2);
-    expect(summary.totalLiters).toBe(70);
+    expect(summary.records).toBe(3);
+    expect(summary.totalLiters).toBe(970);
+    expect(summary.averageDailyLiters).toBe(970);
   });
 
-  it("does not reassign historical sales when a pump moves to another tank", () => {
+  it("uses only the closures assigned to a tank at each closure timestamp", () => {
     const history = [
       assignment(1, 10, "2026-11-01T00:00:00.000Z"),
       assignment(1, 20, "2026-11-20T12:00:00.000Z"),
@@ -192,9 +194,9 @@ describe("inventory estimates", () => {
       1
     );
 
-    expect(summary.coveredDays).toBe(1);
-    expect(summary.totalLiters).toBe(40);
-    expect(summary.averageDailyLiters).toBe(40);
+    expect(summary.coveredDays).toBe(2);
+    expect(summary.totalLiters).toBe(540);
+    expect(summary.averageDailyLiters).toBe(270);
   });
 
   it("counts recorded zero-sales days but does not divide by zero", () => {

@@ -1262,11 +1262,11 @@ Nenhum deploy, escrita remota, DDL, acesso ao MySQL antigo ou aos objetos antigo
 
 ## Autonomia real e navegação de Estoque e Tanques — 22/11/2026
 
-### [x] Autonomia baseada nos fechamentos reais das 13h e 22h
-- Para calcular consumo/autonomia, mapear apenas os registros de turno `manha` e `noite` para os fechamentos operacionais das 13h e 22h, respectivamente. Não exigir um fechamento `tarde` para esta regra e não remover ou alterar o turno `tarde` em formulários, relatórios, dashboard ou outras regras gerais.
-- Um dia só será amostra completa se existir exatamente um fechamento válido de manhã e exatamente um de noite, ambos finalizados, com cobertura válida dos bicos atualmente vinculados ao tanque na data/hora de cada fechamento e do combustível correspondente. Dia sem qualquer fechamento exigido, fechamento duplicado, venda/bico ausente ou dado inválido será excluído da média; nunca preencher como venda zero nem inferir dados.
-- Manter o requisito conservador de pelo menos três dias completos antes de calcular média diária ou autonomia. Exibir ausência/baixa cobertura explicitamente; média de vendas zero não produz previsão artificial.
-- Comunicar no aviso de cobertura que os dias considerados exigem fechamentos das 13h e 22h; indicar quantos dias completos válidos foram observados. Não modificar dados persistidos, schema, banco ou migrações.
+### [x] Autonomia baseada em todos os fechamentos reais do dia
+- Para calcular consumo/autonomia, considerar todos os fechamentos finalizados e suas vendas no dia, qualquer que seja o turno ou a quantidade de fechamentos. Não exigir exatamente dois fechamentos nem fechamento específico às 13h/22h; não alterar os turnos em formulários, relatórios, dashboard ou outras regras gerais.
+- Para cada fechamento, usar a atribuição de bicos vigente no tanque na data/hora daquele fechamento e o combustível correspondente. Somar as vendas dos fechamentos válidos do mesmo dia. Dias sem fechamento válido para o tanque não entram na média; não preencher vendas ausentes como zero nem inferir dados.
+- Com um ou mais dias válidos, calcular a média e a autonomia; com menos de três dias completos cobertos, permitir a estimativa e marcá-la como de baixa confiabilidade. Sem dias válidos ou quando a média for zero, não produzir previsão artificial.
+- O aviso deve explicar a cobertura real observada sem supor quantidade fixa de fechamentos ou turnos obrigatórios. Não modificar dados persistidos, schema, banco ou migrações.
 
 ### [x] Área Estoque e Tanques mais clara e responsiva
 - Reorganizar a página em quatro áreas navegáveis e nomeadas: “Visão geral”, “Operações”, “Tanques e bicos” e “Histórico”, com Visão geral aberta inicialmente e navegação utilizável por mouse, teclado e celular.
@@ -1276,7 +1276,7 @@ Nenhum deploy, escrita remota, DDL, acesso ao MySQL antigo ou aos objetos antigo
 - Aumentar a legibilidade da página e a clareza de hierarquia visual, com campos e ações fáceis de alcançar em celular e sem rolagem confusa entre tarefas; manter a paleta da marca e evitar rolagem horizontal indevida.
 - Validar com `pnpm check`, `pnpm test`, `pnpm build`, Prettier e revisão do diff. Esta entrega não altera banco/schema, não publica/deploya e não cria commit/push.
 
-Evidências em 22/11/2026: a amostra exige um fechamento `manha` (13h) e um `noite` (22h) por dia, ignora vendas `tarde` apenas nesta regra e mantém mínimo de três dias completos; regressões cobrem ausência, duplicidade, bico transferido e vendas da tarde. A área apresenta as quatro seções previstas, com operações, permissões, consultas, filtros, comprovantes e exportações preservados no código. `pnpm check`, `pnpm test` (67 testes/15 arquivos), `pnpm build`, Prettier e `git diff --check` passaram; o build mantém aviso de chunk acima de 500 kB. Nenhuma alteração de banco/schema, deploy, commit ou push foi feita.
+Evidências em 23/11/2026: o cálculo considera todos os fechamentos finalizados do dia; dias com apenas um fechamento, dois ou três podem entrar conforme a cobertura válida de bicos/vendas, sem exigir turno fixo. Turnos sem bicos vinculados ao tanque são ignorados para esse tanque; se um fechamento aplicável não contém venda válida de um bico atribuído, o dia é descartado, não tratado como venda zero. Amostras menores que três dias geram estimativa identificada como baixa confiabilidade; sem dias válidos ou com média zero não há previsão. Testes cobrem um fechamento, três turnos no dia, repetição de turno, dias sem cobertura e mudança histórica de tanque. A área apresenta as quatro seções previstas, com operações, permissões, consultas, filtros, comprovantes e exportações preservados no código. Verificações da mudança mais recente registradas no commit; sem alteração de banco/schema, deploy ou publicação.
 
 
 ## Auditoria de segurança e desempenho — solicitação de 22/11/2026

@@ -107,8 +107,7 @@ type ClosureSales = {
   rows: TankSalesRecord[];
 };
 export const MINIMUM_AUTONOMY_SAMPLE_DAYS = 3;
-// The station closes at 13:00 (manha) and 22:00 (noite).
-const REQUIRED_SHIFTS = ["manha", "noite"] as const;
+
 export function summarizeTankSalesWindow(
   sales: readonly TankSalesRecord[],
   assignedPumpIds: readonly number[] | ReadonlySet<number>,
@@ -172,28 +171,16 @@ export function summarizeTankSalesWindow(
   let coveredDays = 0;
   let totalLiters = 0;
   for (const dayClosures of byDate.values()) {
-    const requiredClosures = dayClosures.filter(closure =>
-      REQUIRED_SHIFTS.some(shift => shift === closure.shift)
-    );
-    const shiftCounts = new Map<string, number>();
-    for (const closure of requiredClosures)
-      shiftCounts.set(closure.shift, (shiftCounts.get(closure.shift) ?? 0) + 1);
-    if (
-      requiredClosures.length !== REQUIRED_SHIFTS.length ||
-      REQUIRED_SHIFTS.some(shift => shiftCounts.get(shift) !== 1)
-    )
-      continue;
     let dayLiters = 0;
     const dayRows: TankSalesRecord[] = [];
     let fullyCovered = true;
-    for (const closure of requiredClosures) {
+    let closuresWithAssignedPumps = 0;
+    for (const closure of dayClosures) {
       const assignedPumps = [...candidatePumpIds].filter(
         pumpId => assignmentAt(pumpId, closure.finalizedAt) === tankId
       );
-      if (!assignedPumps.length) {
-        fullyCovered = false;
-        break;
-      }
+      if (!assignedPumps.length) continue;
+      closuresWithAssignedPumps += 1;
       for (const pumpId of assignedPumps) {
         const row = closure.rows.find(item => item.pumpId === pumpId);
         if (!row || row.fuelType !== fuelType) {
@@ -210,14 +197,13 @@ export function summarizeTankSalesWindow(
       }
       if (!fullyCovered) break;
     }
-    if (fullyCovered) {
+    if (fullyCovered && closuresWithAssignedPumps > 0) {
       coveredDays += 1;
       totalLiters += dayLiters;
       relevantSales.push(...dayRows);
     }
   }
-  const averageDailyLiters =
-    coveredDays > 0 ? totalLiters / coveredDays : 0;
+  const averageDailyLiters = coveredDays > 0 ? totalLiters / coveredDays : 0;
   return {
     effectiveStart,
     availableDays: coveredDays,

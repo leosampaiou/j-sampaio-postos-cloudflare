@@ -2,7 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 import worker from "./index";
 
 function makeEnv() {
-  const fetch = vi.fn(async () => new Response("app-shell", { status: 200 }));
+  const fetch = vi.fn(
+    async () =>
+      new Response("app-shell", {
+        status: 200,
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      })
+  );
   return { env: { ASSETS: { fetch } }, fetch };
 }
 
@@ -16,6 +22,13 @@ describe("Cloudflare Worker scaffold", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(response.headers.get("referrer-policy")).toBe(
+      "strict-origin-when-cross-origin"
+    );
+    expect(response.headers.get("strict-transport-security")).toBe(
+      "max-age=31536000"
+    );
     await expect(response.json()).resolves.toEqual({
       status: "ok",
       phase: "worker-scaffold",
@@ -70,6 +83,18 @@ describe("Cloudflare Worker scaffold", () => {
 
     expect(response.status).toBe(200);
     expect(fetch).toHaveBeenCalledWith(request);
+    expect(response.headers.get("content-security-policy-report-only")).toContain(
+      "default-src 'self'"
+    );
+    expect(response.headers.get("content-security-policy-report-only")).not.toContain(
+      "frame-ancestors"
+    );
     await expect(response.text()).resolves.toBe("app-shell");
+  });
+
+  it("does not emit HSTS on plain HTTP requests", async () => {
+    const { env } = makeEnv();
+    const response = await worker.fetch(new Request("http://localhost/"), env);
+    expect(response.headers.get("strict-transport-security")).toBeNull();
   });
 });

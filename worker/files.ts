@@ -21,10 +21,11 @@ export interface R2BucketLike {
     key: string,
     value: ReadableStream<Uint8Array>,
     options?: {
+      onlyIf?: { etagDoesNotMatch?: string };
       httpMetadata?: { contentType?: string };
       customMetadata?: Record<string, string>;
     }
-  ): Promise<unknown>;
+  ): Promise<unknown | null>;
 }
 
 const KEY_PATTERN =
@@ -66,7 +67,11 @@ function matchesSignature(extension: string, bytes: Uint8Array): boolean {
       bytes[0] === 0x89 &&
       bytes[1] === 0x50 &&
       bytes[2] === 0x4e &&
-      bytes[3] === 0x47
+      bytes[3] === 0x47 &&
+      bytes[4] === 0x0d &&
+      bytes[5] === 0x0a &&
+      bytes[6] === 0x1a &&
+      bytes[7] === 0x0a
     );
   return (
     bytes.length >= 3 &&
@@ -76,15 +81,15 @@ function matchesSignature(extension: string, bytes: Uint8Array): boolean {
   );
 }
 
-async function ownerExists(
+async function getAttachedFileKey(
   db: PostgresDatabase,
   folder: string,
   unitId: number,
   ownerId: number
-): Promise<boolean> {
+): Promise<string | null | undefined> {
   if (folder === "fuel-receipts") {
     const [row] = await db
-      .select({ id: stockMovements.id })
+      .select({ id: stockMovements.id, fileKey: stockMovements.documentKey })
       .from(stockMovements)
       .where(
         and(
@@ -94,16 +99,16 @@ async function ownerExists(
         )
       )
       .limit(1);
-    return Boolean(row);
+    return row ? row.fileKey : undefined;
   }
   const [row] = await db
-    .select({ id: discrepancyCases.id })
+    .select({ id: discrepancyCases.id, fileKey: discrepancyCases.evidenceKey })
     .from(discrepancyCases)
     .where(
       and(eq(discrepancyCases.id, ownerId), eq(discrepancyCases.unitId, unitId))
     )
     .limit(1);
-  return Boolean(row);
+  return row ? row.fileKey : undefined;
 }
 
 /**
@@ -148,9 +153,22 @@ export async function handleFileRequest(
     return json({ error: "Arquivo não encontrado." }, 404);
 
   if (request.method === "GET") {
-    if (!(await ownerExists(db, folder, user.unitId, Number(ownerText))))
+    const attachedKey = await getAttachedFileKey(
+      db,
+      folder,
+      user.unitId,
+      Number(ownerText)
+    );
+    if (attachedKey === undefined)
       return json({ error: "Registro vinculado não encontrado." }, 404);
-    const object = await bucket.get(key);
+    if (attachedKey !== key)
+      return json({ error: "Arquivo não encontrado." }, 404);
+    let object: R2ObjectBodyLike | null;
+    try {
+      object = await bucket.get(key);
+    } catch {
+      return json({ error: "O armazenamento de arquivos está indisponível." }, 503);
+    }
     if (!object) return json({ error: "Arquivo não encontrado." }, 404);
     return new Response(object.body, {
       status: 200,
@@ -189,10 +207,17 @@ export async function handleFileRequest(
   if (!Number.isFinite(declared) || declared <= 0 || declared > MAX_FILE_BYTES)
     return json({ error: "O arquivo deve ter até 10 MB." }, 413);
 
-  if (!(await ownerExists(db, folder, user.unitId, Number(ownerText))))
+  if (
+    (await getAttachedFileKey(db, folder, user.unitId, Number(ownerText))) ===
+    undefined
+  )
     return json({ error: "Registro vinculado não encontrado." }, 404);
-  if (await bucket.head(key))
-    return json({ error: "Este arquivo já foi enviado." }, 409);
+  try {
+    if (await bucket.head(key))
+      return json({ error: "Este arquivo já foi enviado." }, 409);
+  } catch {
+    return json({ error: "O armazenamento de arquivos está indisponível." }, 503);
+  }
 
   if (!request.body) return json({ error: "Arquivo vazio." }, 400);
 
@@ -244,13 +269,16 @@ export async function handleFileRequest(
   );
 
   try {
-    await bucket.put(key, validatedBody, {
+    const stored = await bucket.put(key, validatedBody, {
+      onlyIf: { etagDoesNotMatch: "*" },
       httpMetadata: { contentType: expectedType },
       customMetadata: {
         uploadedBy: String(user.id),
         unitId: String(user.unitId),
       },
     });
+    if (!stored)
+      return json({ error: "Este arquivo já foi enviado." }, 409);
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
     if (message.includes("FILE_TOO_LARGE"))
@@ -259,7 +287,10 @@ export async function handleFileRequest(
       return json({ error: "O conteúdo não corresponde ao tipo informado." }, 415);
     if (message.includes("FILE_EMPTY"))
       return json({ error: "Arquivo vazio." }, 400);
-    throw error;
+    return json(
+      { error: "O armazenamento de arquivos não conseguiu concluir o envio." },
+      503
+    );
   }
   return json({ success: true, key }, 201);
 }

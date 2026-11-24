@@ -66,7 +66,10 @@ async function logAudit(
   targetType: string,
   targetId: number,
   action: string,
-  reason?: string
+  reason?: string,
+  field?: string,
+  beforeValue?: string,
+  afterValue?: string
 ) {
   await tx.insert(auditEvents).values({
     unitId,
@@ -75,6 +78,9 @@ async function logAudit(
     targetId,
     action,
     reason: reason ?? null,
+    field: field ?? null,
+    beforeValue: beforeValue ?? null,
+    afterValue: afterValue ?? null,
   });
 }
 
@@ -994,32 +1000,44 @@ export const inventoryRouter = router({
     )
     .mutation(async ({ input, ctx }) => {
       const db = ctx.db;
-      const [movement] = await db
-        .select()
-        .from(stockMovements)
-        .where(
-          and(
-            eq(stockMovements.id, input.movementId),
-            eq(stockMovements.unitId, ctx.user.unitId),
-            eq(stockMovements.movementType, "receipt")
+      return db.transaction(async tx => {
+        const [movement] = await tx
+          .select()
+          .from(stockMovements)
+          .where(
+            and(
+              eq(stockMovements.id, input.movementId),
+              eq(stockMovements.unitId, ctx.user.unitId),
+              eq(stockMovements.movementType, "receipt")
+            )
+          )
+          .limit(1)
+          .for("update");
+        if (!movement)
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Entrada não encontrada.",
+          });
+        if (
+          !input.documentKey.startsWith(
+            `fuel-receipts/${ctx.user.unitId}/${movement.id}/`
           )
         )
-        .limit(1);
-      if (!movement)
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Entrada não encontrada.",
-        });
-      if (
-        !input.documentKey.startsWith(
-          `fuel-receipts/${ctx.user.unitId}/${movement.id}/`
-        )
-      )
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "O comprovante não pertence a esta entrada.",
-        });
-      await db.transaction(async tx => {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "O comprovante não pertence a esta entrada.",
+          });
+        if (movement.documentKey && movement.documentKey !== input.documentKey)
+          throw new TRPCError({
+            code: "CONFLICT",
+            message:
+              "Já existe um comprovante vinculado; a substituição não pode ser silenciosa.",
+          });
+        if (movement.documentKey === input.documentKey)
+          return {
+            success: true,
+            documentUrl: `/api/files/${input.documentKey}`,
+          };
         await tx
           .update(stockMovements)
           .set({ documentKey: input.documentKey })
@@ -1031,13 +1049,16 @@ export const inventoryRouter = router({
           "stock_movement",
           movement.id,
           "receipt_document_attached",
-          "Comprovante vinculado à entrada."
+          "Comprovante vinculado à entrada.",
+          "documentKey",
+          movement.documentKey ?? "",
+          input.documentKey
         );
+        return {
+          success: true,
+          documentUrl: `/api/files/${input.documentKey}`,
+        };
       });
-      return {
-        success: true,
-        documentUrl: `/api/files/${input.documentKey}`,
-      };
     }),
 
   recordMeasurement: managerProcedure

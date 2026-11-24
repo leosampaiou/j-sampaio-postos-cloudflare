@@ -15,18 +15,19 @@ const KEY = `fuel-receipts/1/7/${UUID}.pdf`;
 const URL_BASE = "https://app.test/api/files/";
 const PDF = new TextEncoder().encode("%PDF-1.7 conteudo");
 
-function fakeDb(ownerFound: boolean) {
+function fakeDb(ownerFound: boolean, attachedKey: string | null = null) {
   const chain = {
     from: () => chain,
     where: () => chain,
-    limit: async () => (ownerFound ? [{ id: 7 }] : []),
+    limit: async () =>
+      ownerFound ? [{ id: 7, fileKey: attachedKey }] : [],
   };
   return { select: () => chain } as never;
 }
 function fakeBucket(existing = false) {
   const stored = new Map<string, ArrayBuffer>();
   const bucket: R2BucketLike = {
-    head: async () => (existing ? {} : null),
+    head: async key => (existing || stored.has(key) ? {} : null),
     get: async key =>
       stored.has(key)
         ? {
@@ -34,9 +35,15 @@ function fakeBucket(existing = false) {
             httpMetadata: { contentType: "application/pdf" },
           }
         : null,
-    put: vi.fn(async (key: string, value: ReadableStream<Uint8Array>) => {
+    put: vi.fn(async (key, value, options) => {
       const content = await new Response(value).arrayBuffer();
+      if (
+        options?.onlyIf?.etagDoesNotMatch === "*" &&
+        (existing || stored.has(key))
+      )
+        return null;
       stored.set(key, content);
+      return { key };
     }),
   };
   return { bucket, stored };
@@ -106,7 +113,7 @@ describe("handleFileRequest", () => {
     expect(created.status).toBe(201);
     const read = await handleFileRequest(
       new Request(URL_BASE + KEY),
-      fakeDb(true),
+      fakeDb(true, KEY),
       bucket
     );
     expect(read.status).toBe(200);
@@ -121,6 +128,18 @@ describe("handleFileRequest", () => {
     const response = await handleFileRequest(
       new Request(URL_BASE + KEY),
       fakeDb(false),
+      bucket
+    );
+    expect(response.status).toBe(404);
+  });
+
+  it("nega download de objeto cuja chave não está associada ao registro", async () => {
+    login();
+    const { bucket, stored } = fakeBucket();
+    stored.set(KEY, PDF.buffer.slice(0));
+    const response = await handleFileRequest(
+      new Request(URL_BASE + KEY),
+      fakeDb(true, `fuel-receipts/1/7/${"f".repeat(8)}-${"a".repeat(4)}-${"b".repeat(4)}-${"c".repeat(4)}-${"d".repeat(12)}.pdf`),
       bucket
     );
     expect(response.status).toBe(404);
@@ -170,6 +189,19 @@ describe("handleFileRequest", () => {
     expect(bucket.put).toHaveBeenCalledTimes(1);
   });
 
+  it("valida os oito bytes da assinatura PNG", async () => {
+    login();
+    const { bucket } = fakeBucket();
+    const pngKey = `fuel-receipts/1/7/${UUID}.png`;
+    const invalidPng = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0, 0, 0, 0]);
+    const response = await handleFileRequest(
+      put(pngKey, { type: "image/png", body: invalidPng }),
+      fakeDb(true),
+      bucket
+    );
+    expect(response.status).toBe(415);
+  });
+
   it("não sobrescreve objeto existente e limita o tamanho", async () => {
     login();
     const { bucket } = fakeBucket(true);
@@ -197,5 +229,53 @@ describe("handleFileRequest", () => {
       fakeBucket().bucket
     );
     expect(streamed.status).toBe(413);
+  });
+
+  it("impede sobrescrita concorrente com escrita condicional create-only", async () => {
+    login();
+    const { bucket, stored } = fakeBucket();
+    const [first, second] = await Promise.all([
+      handleFileRequest(put(), fakeDb(true), bucket),
+      handleFileRequest(put(), fakeDb(true), bucket),
+    ]);
+    expect([first.status, second.status].sort()).toEqual([201, 409]);
+    expect(stored.size).toBe(1);
+    expect(bucket.put).toHaveBeenCalledTimes(2);
+    expect(bucket.put).toHaveBeenCalledWith(
+      KEY,
+      expect.anything(),
+      expect.objectContaining({ onlyIf: { etagDoesNotMatch: "*" } })
+    );
+  });
+
+  it("normaliza falhas do R2 sem expor a mensagem do serviço", async () => {
+    login();
+    const failedHead = fakeBucket();
+    failedHead.bucket.head = vi.fn(async () => {
+      throw new Error("private R2 endpoint detail");
+    });
+    const headResponse = await handleFileRequest(
+      put(),
+      fakeDb(true),
+      failedHead.bucket
+    );
+    expect(headResponse.status).toBe(503);
+    await expect(headResponse.json()).resolves.toEqual({
+      error: "O armazenamento de arquivos está indisponível.",
+    });
+
+    const failedPut = fakeBucket();
+    failedPut.bucket.put = vi.fn(async () => {
+      throw new Error("private R2 endpoint detail");
+    });
+    const putResponse = await handleFileRequest(
+      put(),
+      fakeDb(true),
+      failedPut.bucket
+    );
+    expect(putResponse.status).toBe(503);
+    await expect(putResponse.json()).resolves.toEqual({
+      error: "O armazenamento de arquivos não conseguiu concluir o envio.",
+    });
   });
 });

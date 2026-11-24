@@ -51,11 +51,24 @@ async function audit(
   targetType: string,
   targetId: number,
   action: string,
-  reason: string
+  reason: string,
+  field?: string,
+  beforeValue?: string | null,
+  afterValue?: string | null
 ) {
   await tx
     .insert(auditEvents)
-    .values({ unitId, userId, targetType, targetId, action, reason });
+    .values({
+      unitId,
+      userId,
+      targetType,
+      targetId,
+      action,
+      reason,
+      field: field ?? null,
+      beforeValue: beforeValue ?? null,
+      afterValue: afterValue ?? null,
+    });
 }
 
 async function currentEmployeeIds(db: any, unitId: number, userId: number) {
@@ -854,7 +867,7 @@ export const discrepanciesRouter = router({
         ]),
         justification: z.string().trim().max(4000).optional(),
         reviewNotes: z.string().trim().max(4000).optional(),
-        evidenceKey: z.string().trim().max(420).optional(),
+        evidenceKey: z.string().trim().min(1).max(420).optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -931,13 +944,25 @@ export const discrepanciesRouter = router({
             message:
               "A ocorrência pertence a uma revisão anterior ou foi cancelada por correção; atualize a página antes de analisar.",
           });
+        if (
+          current.evidenceKey &&
+          input.evidenceKey &&
+          current.evidenceKey !== input.evidenceKey
+        )
+          throw new TRPCError({
+            code: "CONFLICT",
+            message:
+              "Já existe uma evidência vinculada; a substituição não pode ser silenciosa.",
+          });
+        const nextEvidenceKey = input.evidenceKey ?? current.evidenceKey;
+        const evidenceChanged = nextEvidenceKey !== current.evidenceKey;
         await tx
           .update(discrepancyCases)
           .set({
             status: input.status,
             justification: input.justification ?? current.justification,
             reviewNotes: input.reviewNotes ?? current.reviewNotes,
-            evidenceKey: input.evidenceKey ?? current.evidenceKey,
+            evidenceKey: nextEvidenceKey,
             decisionBy: ctx.user.id,
             decisionAt: new Date(),
           })
@@ -949,7 +974,10 @@ export const discrepanciesRouter = router({
           "discrepancy_case",
           input.caseId,
           "analysis_updated",
-          `Status ${current.status} → ${input.status}; ${input.reviewNotes || input.justification || "sem comentário"}`
+          `Status ${current.status} → ${input.status}; ${input.reviewNotes || input.justification || "sem comentário"}`,
+          evidenceChanged ? "evidenceKey" : undefined,
+          current.evidenceKey,
+          nextEvidenceKey
         );
       });
       return { success: true };

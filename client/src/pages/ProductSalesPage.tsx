@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import QueryError from "@/components/QueryError";
 import { toast } from "sonner";
-import { Barcode, Camera, CameraOff, Check, Minus, Plus, ScanLine, Trash2 } from "lucide-react";
+import { Barcode, Camera, CameraOff, Check, CheckCircle2, CircleAlert, Minus, Plus, Trash2 } from "lucide-react";
 
 type User = { id: number; fullName: string; role: "frentista" | "gerente" | "administrador" };
 type Product = {
@@ -20,7 +20,7 @@ type CartLine = { product: Product; quantity: number };
 const money = (cents: number) => ((cents || 0) / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const shiftOptions = [{ value: "manha", label: "Manhã" }, { value: "tarde", label: "Tarde" }, { value: "noite", label: "Noite" }] as const;
 
-function BarcodeScanner({ onCode }: { onCode: (code: string) => void }) {
+function BarcodeScanner({ onCode, disabled = false }: { onCode: (code: string) => void; disabled?: boolean }) {
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState("");
   const video = useRef<HTMLVideoElement>(null);
@@ -73,7 +73,7 @@ function BarcodeScanner({ onCode }: { onCode: (code: string) => void }) {
     };
   }, [open]);
   return <div className="barcode-tools">
-    <Button type="button" variant="outline" onClick={() => setOpen(value => !value)}>
+    <Button type="button" variant="outline" disabled={disabled} onClick={() => setOpen(value => !value)}>
       {open ? <CameraOff size={17} /> : <Camera size={17} />}{open ? "Fechar câmera" : "Ler com câmera"}
     </Button>
     {open && <div className="scanner-preview"><video ref={video} playsInline muted aria-label="Visualização da câmera para código de barras" /><p>{status || "Solicitando acesso à câmera…"}</p></div>}
@@ -86,66 +86,380 @@ function SaleRegister({ user }: { user: User }) {
   const [shift, setShift] = useState<"manha" | "tarde" | "noite">("manha");
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<CartLine[]>([]);
+  const [confirmationUncertain, setConfirmationUncertain] = useState(false);
+  const [receipt, setReceipt] = useState<{
+    id: number;
+    totalCents: number;
+    repeated: boolean;
+    date: string;
+    shift: string;
+    items: { name: string; quantity: number }[];
+  } | null>(null);
   const key = useRef(crypto.randomUUID());
+  const submitLock = useRef(false);
   const catalog = trpc.products.catalog.useQuery();
   const status = trpc.products.commissionStatus.useQuery();
   const sale = trpc.products.createSale.useMutation({
-    onSuccess: async result => {
+    onSuccess: result => {
+      setReceipt({
+        id: result.id,
+        totalCents: result.totalCents,
+        repeated: result.repeated,
+        date,
+        shift,
+        items: cart.map(line => ({ name: line.product.name, quantity: line.quantity })),
+      });
       setCart([]);
       setSearch("");
+      setConfirmationUncertain(false);
       key.current = crypto.randomUUID();
-      await Promise.all([utils.products.slot.invalidate(), utils.products.report.invalidate(), utils.products.catalog.invalidate()]);
-      toast.success(result.repeated ? "Venda já registrada anteriormente; nenhuma duplicação foi criada." : "Venda registrada.");
+      void Promise.all([
+        utils.products.slot.invalidate(),
+        utils.products.report.invalidate(),
+        utils.products.catalog.invalidate(),
+      ]).catch(() => {
+        toast.error(`Venda #${result.id} registrada, mas alguns dados não atualizaram. Recarregue a página.`);
+      });
+      toast.success(
+        result.repeated
+          ? `Venda #${result.id} já estava registrada. Nenhuma duplicação foi criada.`
+          : `Venda #${result.id} registrada com sucesso.`
+      );
     },
-    onError: error => toast.error(error.message),
+    onError: error => {
+      const code = error.data?.code;
+      const definitiveFailure = ["BAD_REQUEST", "FORBIDDEN", "CONFLICT"].includes(
+        code ?? ""
+      );
+      const uncertain = !definitiveFailure;
+      setConfirmationUncertain(uncertain);
+      if (!uncertain) key.current = crypto.randomUUID();
+      toast.error(
+        uncertain
+          ? "A confirmação não chegou. A venda pode ter sido registrada; mantenha este carrinho e tente confirmar novamente para evitar duplicação."
+          : error.message
+      );
+    },
+    onSettled: () => {
+      submitLock.current = false;
+    },
   });
+  const locked = sale.isPending || confirmationUncertain;
   const filtered = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("pt-BR");
     if (!term) return [];
-    return (catalog.data ?? []).filter(product => `${product.name} ${product.brand ?? ""} ${product.barcode} ${product.category ?? ""}`.toLocaleLowerCase("pt-BR").includes(term)).slice(0, 8);
+    return (catalog.data ?? [])
+      .filter(product =>
+        `${product.name} ${product.brand ?? ""} ${product.barcode} ${product.category ?? ""}`
+          .toLocaleLowerCase("pt-BR")
+          .includes(term)
+      )
+      .slice(0, 8);
   }, [catalog.data, search]);
-  const total = cart.reduce((sum, line) => sum + line.product.priceCents * line.quantity, 0);
+  const total = cart.reduce(
+    (sum, line) => sum + line.product.priceCents * line.quantity,
+    0
+  );
+  const itemCount = cart.reduce((sum, line) => sum + line.quantity, 0);
   const addProduct = (product: Product) => {
     setCart(current => {
       const existing = current.find(line => line.product.id === product.id);
       return existing
-        ? current.map(line => line.product.id === product.id ? { ...line, quantity: line.quantity + 1 } : line)
+        ? current.map(line =>
+            line.product.id === product.id
+              ? { ...line, quantity: line.quantity + 1 }
+              : line
+          )
         : [...current, { product, quantity: 1 }];
     });
+    setReceipt(null);
     setSearch("");
   };
   const selectByCode = (code: string) => {
-    const product = catalog.data?.find(item => item.barcode === code && item.active);
+    if (locked) return;
+    const product = catalog.data?.find(
+      item => item.barcode === code && item.active
+    );
     if (product) addProduct(product);
     else {
       setSearch(code);
-      toast.error("Código não encontrado em produtos ativos. Confira o código ou use a busca manual.");
+      toast.error(
+        "Código não encontrado em produtos ativos. Confira o código ou use a busca manual."
+      );
     }
   };
-  const onScan = (code: string) => selectByCode(code);
-  const submit = () => {
-    if (!cart.length) return toast.error("Adicione ao menos um produto.");
-    sale.mutate({ closureDate: date, shift, idempotencyKey: key.current, items: cart.map(line => ({ productId: line.product.id, quantity: line.quantity })) });
+  const handleSearchEnter = () => {
+    const term = search.trim();
+    if (!term) return;
+    const exact = catalog.data?.find(
+      product => product.barcode === term && product.active
+    );
+    const match = exact ?? (filtered.length === 1 ? filtered[0] : undefined);
+    if (match) addProduct(match);
+    else if (!filtered.length)
+      toast.error("Nenhum produto encontrado. Confira o nome ou código.");
   };
-  return <section className="product-sale-card">
-    <div className="product-sale-heading"><div className="product-sale-icon"><ScanLine size={24} /></div><div><span className="eyebrow">VENDA DO TURNO</span><h2>Registrar venda de produtos</h2><p>Vendedor autenticado: <strong>{user.fullName}</strong>. Preços e comissão são aplicados pelo servidor.</p></div></div>
-    <div className="product-slot-fields">
-      <div className="field"><Label htmlFor="sale-date">Data operacional</Label><Input id="sale-date" type="date" value={date} max={businessDateInSaoPaulo()} onChange={event => setDate(event.target.value)} /></div>
-      <div className="field"><Label htmlFor="sale-shift">Turno</Label><select id="sale-shift" className="form-select" value={shift} onChange={event => setShift(event.target.value as typeof shift)}>{shiftOptions.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select></div>
-    </div>
-    <div className="field product-search-field"><Label htmlFor="product-search">Buscar produto por nome, marca ou código de barras</Label><div className="product-scan-row"><Input id="product-search" value={search} onChange={event => setSearch(event.target.value)} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); selectByCode(search.trim()); } }} placeholder="Pesquise ou digite/escaneie o código" autoComplete="off" /><BarcodeScanner onCode={onScan} /></div><small>Leitura por câmera requer HTTPS e permissão do navegador. Busca e digitação funcionam sem câmera.</small></div>
-    {search.trim() && <div className="product-search-results" role="listbox" aria-label="Produtos encontrados">
-      {filtered.map(product => <button type="button" key={product.id} role="option" aria-selected="false" onClick={() => addProduct(product)}><span><strong>{product.name}</strong><small>{product.brand ? `${product.brand} · ` : ""}Código {product.barcode}</small></span><b>{money(product.priceCents)}</b><Plus size={18} /></button>)}
-      {!filtered.length && <p>{catalog.isLoading ? "Carregando catálogo…" : "Nenhum produto ativo encontrado. Confira o código ou tente outro termo."}</p>}
-    </div>}
-    {catalog.isError && <QueryError message="Não foi possível carregar o catálogo de produtos." retry={() => catalog.refetch()} />}
-    <div className="sale-cart" aria-live="polite"><div className="sale-cart-title"><h3>Itens da venda</h3><span>{cart.reduce((sum, line) => sum + line.quantity, 0)} itens</span></div>
-      {cart.length ? cart.map(line => <div className="sale-cart-line" key={line.product.id}><div className="sale-line-name"><strong>{line.product.name}</strong><small>{line.product.barcode} · {money(line.product.priceCents)} por unidade</small></div><div className="quantity-control"><button type="button" aria-label={`Diminuir ${line.product.name}`} onClick={() => setCart(current => current.flatMap(row => row.product.id !== line.product.id ? [row] : row.quantity > 1 ? [{ ...row, quantity: row.quantity - 1 }] : []))}><Minus size={16} /></button><b>{line.quantity}</b><button type="button" aria-label={`Aumentar ${line.product.name}`} onClick={() => setCart(current => current.map(row => row.product.id === line.product.id ? { ...row, quantity: row.quantity + 1 } : row))}><Plus size={16} /></button></div><strong className="sale-line-total">{money(line.quantity * line.product.priceCents)}</strong><button className="icon-button" type="button" aria-label={`Remover ${line.product.name}`} onClick={() => setCart(current => current.filter(row => row.product.id !== line.product.id))}><Trash2 size={16} /></button></div>) : <p className="sale-cart-empty">Use a câmera, pesquise ou digite um código para adicionar produtos.</p>}
-      <div className="sale-cart-total"><span>Subtotal da venda</span><strong>{money(total)}</strong></div>
-    </div>
-    <div className="sale-confirm-row"><p>As formas de recebimento são registradas em conjunto no fechamento do turno, não nesta venda.</p><Button className="primary-button product-confirm-button" disabled={!cart.length || sale.isPending || catalog.isLoading} onClick={submit}><Check size={19} />{sale.isPending ? "Registrando…" : "Confirmar venda"}</Button></div>
-    {status.data && <small className="commission-state">Comissões {status.data.enabled ? "ativadas" : "desativadas"} nesta unidade.</small>}
-  </section>;
+  const submit = () => {
+    if (submitLock.current || sale.isPending) return;
+    if (!cart.length) return toast.error("Adicione ao menos um produto.");
+    submitLock.current = true;
+    setReceipt(null);
+    sale.mutate({
+      closureDate: date,
+      shift,
+      idempotencyKey: key.current,
+      items: cart.map(line => ({
+        productId: line.product.id,
+        quantity: line.quantity,
+      })),
+    });
+  };
+
+  return (
+    <section className="product-sale-card">
+      <div className="sale-context">
+        <span>Vendedor</span>
+        <strong>{user.fullName}</strong>
+        <small>O preço é definido pelo catálogo da unidade.</small>
+      </div>
+
+      {receipt && (
+        <section
+          className={`sale-receipt ${receipt.repeated ? "sale-receipt-replayed" : ""}`}
+          role="status"
+          aria-live="polite"
+        >
+          <div className="sale-receipt-icon"><CheckCircle2 size={25} /></div>
+          <div className="sale-receipt-main">
+            <strong>
+              {receipt.repeated ? "Venda já estava registrada" : "Venda concluída"}
+            </strong>
+            <span>
+              Venda #{receipt.id} · {new Date(`${receipt.date}T12:00:00`).toLocaleDateString("pt-BR")} · {shiftOptions.find(item => item.value === receipt.shift)?.label}
+            </span>
+            <small>
+              {receipt.items.map(item => `${item.name} × ${item.quantity}`).join(" · ")}
+            </small>
+            {receipt.repeated && (
+              <small>O sistema confirmou a venda anterior e não criou outra.</small>
+            )}
+          </div>
+          <div className="sale-receipt-total">
+            <small>Total registrado</small>
+            <strong>{money(receipt.totalCents)}</strong>
+          </div>
+        </section>
+      )}
+
+      {confirmationUncertain && (
+        <div className="sale-confirmation-warning" role="alert">
+          <CircleAlert size={20} />
+          <span>
+            Ainda não recebemos a confirmação do servidor. A venda pode ter sido registrada.
+            Não altere o carrinho; tente novamente com o mesmo conteúdo para verificar sem duplicar.
+          </span>
+        </div>
+      )}
+
+      {sale.isError && !confirmationUncertain && (
+        <div className="sale-confirmation-error" role="alert">
+          A venda não foi registrada. Corrija o problema e tente novamente.
+          <span>{sale.error.message}</span>
+        </div>
+      )}
+
+      <div className="sale-step-heading">
+        <span>1</span>
+        <div>
+          <strong>Escolha o turno</strong>
+          <small>A venda ficará vinculada a este fechamento.</small>
+        </div>
+      </div>
+      <div className="product-slot-fields">
+        <div className="field">
+          <Label htmlFor="sale-date">Data operacional</Label>
+          <Input
+            id="sale-date"
+            type="date"
+            value={date}
+            max={businessDateInSaoPaulo()}
+            disabled={locked}
+            onChange={event => setDate(event.target.value)}
+          />
+        </div>
+        <div className="field">
+          <Label htmlFor="sale-shift">Turno</Label>
+          <select
+            id="sale-shift"
+            className="form-select"
+            value={shift}
+            disabled={locked}
+            onChange={event => setShift(event.target.value as typeof shift)}
+          >
+            {shiftOptions.map(item => (
+              <option key={item.value} value={item.value}>{item.label}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="sale-step-heading">
+        <span>2</span>
+        <div>
+          <strong>Adicione os produtos</strong>
+          <small>Pesquise pelo nome ou leia o código de barras.</small>
+        </div>
+      </div>
+      <div className="field product-search-field">
+        <Label htmlFor="product-search">Produto</Label>
+        <div className="product-scan-row">
+          <Input
+            id="product-search"
+            value={search}
+            disabled={locked || catalog.isLoading}
+            onChange={event => setSearch(event.target.value)}
+            onKeyDown={event => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                handleSearchEnter();
+              }
+            }}
+            placeholder="Nome, marca ou código de barras"
+            autoComplete="off"
+          />
+          <BarcodeScanner onCode={selectByCode} disabled={locked} />
+        </div>
+        <small>Você também pode digitar o código. A câmera requer permissão do navegador.</small>
+      </div>
+      {search.trim() && (
+        <div className="product-search-results" role="listbox" aria-label="Produtos encontrados">
+          {filtered.map(product => (
+            <button
+              type="button"
+              key={product.id}
+              role="option"
+              aria-selected="false"
+              disabled={locked}
+              onClick={() => addProduct(product)}
+            >
+              <span>
+                <strong>{product.name}</strong>
+                <small>{product.brand ? `${product.brand} · ` : ""}Código {product.barcode}</small>
+              </span>
+              <b>{money(product.priceCents)}</b>
+              <Plus size={18} />
+            </button>
+          ))}
+          {!filtered.length && (
+            <p>{catalog.isLoading ? "Carregando catálogo…" : "Nenhum produto ativo encontrado. Confira o código ou tente outro termo."}</p>
+          )}
+        </div>
+      )}
+      {catalog.isError && (
+        <QueryError
+          message="Não foi possível carregar o catálogo de produtos."
+          retry={() => catalog.refetch()}
+        />
+      )}
+
+      <div className="sale-step-heading">
+        <span>3</span>
+        <div>
+          <strong>Revise e finalize</strong>
+          <small>Confirme somente depois de conferir itens e total.</small>
+        </div>
+      </div>
+      <div className="sale-cart" aria-live="polite">
+        <div className="sale-cart-title">
+          <h3>Itens da venda</h3>
+          <span>{itemCount} {itemCount === 1 ? "unidade" : "unidades"}</span>
+        </div>
+        {cart.length ? (
+          cart.map(line => (
+            <div className="sale-cart-line" key={line.product.id}>
+              <div className="sale-line-name">
+                <strong>{line.product.name}</strong>
+                <small>{money(line.product.priceCents)} por unidade</small>
+              </div>
+              <div className="quantity-control">
+                <button
+                  type="button"
+                  disabled={locked}
+                  aria-label={`Diminuir ${line.product.name}`}
+                  onClick={() => setCart(current => current.flatMap(row =>
+                    row.product.id !== line.product.id
+                      ? [row]
+                      : row.quantity > 1
+                        ? [{ ...row, quantity: row.quantity - 1 }]
+                        : []
+                  ))}
+                >
+                  <Minus size={16} />
+                </button>
+                <b>{line.quantity}</b>
+                <button
+                  type="button"
+                  disabled={locked}
+                  aria-label={`Aumentar ${line.product.name}`}
+                  onClick={() => setCart(current => current.map(row =>
+                    row.product.id === line.product.id
+                      ? { ...row, quantity: row.quantity + 1 }
+                      : row
+                  ))}
+                >
+                  <Plus size={16} />
+                </button>
+              </div>
+              <strong className="sale-line-total">
+                {money(line.quantity * line.product.priceCents)}
+              </strong>
+              <button
+                className="icon-button"
+                type="button"
+                disabled={locked}
+                aria-label={`Remover ${line.product.name}`}
+                onClick={() => setCart(current => current.filter(row => row.product.id !== line.product.id))}
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          ))
+        ) : (
+          <p className="sale-cart-empty">Nenhum produto adicionado. Pesquise ou leia um código de barras.</p>
+        )}
+        <div className="sale-cart-total">
+          <span>Total da venda</span>
+          <strong>{money(total)}</strong>
+        </div>
+      </div>
+
+      <div className="sale-confirm-row">
+        <p>O recebimento desta venda é somado no fechamento do turno.</p>
+        <Button
+          className="primary-button product-confirm-button"
+          disabled={!cart.length || sale.isPending || catalog.isLoading}
+          onClick={submit}
+        >
+          <Check size={19} />
+          {sale.isPending
+            ? "Registrando venda…"
+            : confirmationUncertain
+              ? "Tentar confirmar novamente"
+              : "Finalizar venda"}
+        </Button>
+      </div>
+      {sale.isPending && (
+        <p className="sale-processing-note" role="status">
+          Aguarde a confirmação antes de tocar novamente. Não feche esta página.
+        </p>
+      )}
+      {status.data && (
+        <small className="commission-state">
+          Comissões {status.data.enabled ? "ativadas" : "desativadas"} nesta unidade.
+        </small>
+      )}
+    </section>
+  );
 }
 
 function CatalogManager() {
@@ -201,7 +515,7 @@ function CommissionReport() {
 export default function ProductSalesPage({ user, management }: { user: User; management: boolean }) {
   return <div className="product-sales-workspace">
     {management && <div className="product-page-header"><div><span className="eyebrow">PRODUTOS · OPERAÇÃO E GESTÃO</span><h1>Produtos e comissões</h1><p>Catálogo por unidade, vendas com snapshots e consulta gerencial.</p></div><Link href="/registrar-venda" className="inline-link"><Barcode size={16} /> Abrir venda</Link></div>}
-    {!management && <div className="product-page-header"><div><span className="eyebrow">VENDA RÁPIDA</span><h1>Produtos</h1><p>Escaneie, pesquise e revise antes de confirmar.</p></div></div>}
+    {!management && <div className="product-page-header"><div><span className="eyebrow">VENDA RÁPIDA</span><h1>Nova venda</h1><p>Adicione os produtos, confira o total e finalize.</p></div></div>}
     <SaleRegister user={user} />
     {management && <><CatalogManager /><CommissionReport /></>}
   </div>;

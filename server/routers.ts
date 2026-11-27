@@ -8,6 +8,7 @@ import {
   inArray,
   isNotNull,
   isNull,
+  lt,
   lte,
   ne,
   or,
@@ -36,6 +37,15 @@ import {
 } from "../drizzle/schema.pg";
 import { syncFinalizedClosure } from "./closureIntegrations";
 import { isClosureArchivable } from "../shared/closureArchive";
+import {
+  matchesLatestReadingBaseline,
+  parseReadingMilli,
+  previousClosureShifts,
+} from "../shared/closureReadings";
+import {
+  hasCompletePaymentMethods,
+  paymentMethodOrder,
+} from "../shared/currency";
 import { discrepanciesRouter } from "./routers/discrepancies";
 import { inventoryRouter } from "./routers/inventory";
 import {
@@ -68,7 +78,7 @@ import { systemRouter } from "./_core/systemRouter";
 const roleSchema = z.enum(["frentista", "gerente", "administrador"]);
 const shiftSchema = z.enum(["manha", "tarde", "noite"]);
 const fuelSchema = z.enum(["gasolina_comum", "diesel_s10"]);
-const paymentSchema = z.enum(["dinheiro", "pix", "debito", "credito"]);
+const paymentSchema = z.enum(paymentMethodOrder);
 const usernameSchema = z
   .string()
   .trim()
@@ -83,14 +93,13 @@ const calendarDateSchema = z
   .string()
   .refine(isValidCalendarDate, "Informe uma data de calendário válida.");
 const parseReading = (value: string) => {
-  const normalized = value.trim().replace(",", ".");
-  if (!/^\d{1,11}(?:\.\d{1,3})?$/.test(normalized))
+  const milli = parseReadingMilli(value);
+  if (milli === null)
     throw new TRPCError({
       code: "BAD_REQUEST",
       message: "Leitura inválida; use até três casas decimais.",
     });
-  const [whole, fraction = ""] = normalized.split(".");
-  return Number(whole) * 1000 + Number(fraction.padEnd(3, "0"));
+  return milli;
 };
 const MAX_INTEGER = 2_147_483_647;
 const positiveIntegerSchema = z.number().int().positive().max(MAX_INTEGER);
@@ -768,9 +777,74 @@ const closureInput = z
         path: ["participants"],
         message: "A soma da participação dos funcionários deve ser 100%.",
       });
+    if (
+      !hasCompletePaymentMethods(input.payments.map(payment => payment.method))
+    )
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["payments"],
+        message:
+          "Informe exatamente uma modalidade de cada forma de recebimento.",
+      });
   });
 
+const previousReadingBaselines = async (
+  db: Pick<PostgresDatabase, "selectDistinctOn">,
+  unitId: number,
+  closureDate: string,
+  shift: z.infer<typeof shiftSchema>
+) => {
+  const previousShifts = previousClosureShifts(shift);
+  const earlierSlot = previousShifts.length
+    ? or(
+        lt(closures.closureDate, closureDate),
+        and(
+          eq(closures.closureDate, closureDate),
+          inArray(closures.shift, previousShifts)
+        )
+      )
+    : lt(closures.closureDate, closureDate);
+  const shiftOrder = sql`case ${closures.shift}
+    when 'manha' then 1 when 'tarde' then 2 when 'noite' then 3 else 0 end`;
+
+  return db
+    .selectDistinctOn([closureNozzles.pumpId], {
+      pumpId: closureNozzles.pumpId,
+      finalReading: closureNozzles.finalReading,
+      closureDate: closures.closureDate,
+      shift: closures.shift,
+    })
+    .from(closureNozzles)
+    .innerJoin(closures, eq(closureNozzles.closureId, closures.id))
+    .innerJoin(fuelPumps, eq(closureNozzles.pumpId, fuelPumps.id))
+    .where(
+      and(
+        eq(closures.unitId, unitId),
+        eq(closures.status, "finalizado"),
+        isNull(closures.deletedAt),
+        eq(fuelPumps.unitId, unitId),
+        earlierSlot
+      )
+    )
+    .orderBy(
+      asc(closureNozzles.pumpId),
+      desc(closures.closureDate),
+      desc(shiftOrder),
+      desc(closures.id)
+    );
+};
+
 const closuresRouter = router({
+  readingBaseline: protectedProcedure
+    .input(z.object({ closureDate: calendarDateSchema, shift: shiftSchema }))
+    .query(({ input, ctx }) =>
+      previousReadingBaselines(
+        ctx.db,
+        ctx.user.unitId,
+        input.closureDate,
+        input.shift
+      )
+    ),
   list: protectedProcedure
     .input(
       z
@@ -1224,6 +1298,37 @@ const closuresRouter = router({
           message: "Informe as leituras de todos os bicos do fechamento.",
         });
 
+      if (ctx.user.role === "frentista") {
+        const expectedReadings = existing
+          ? new Map(
+              priorNozzles.map(nozzle => [nozzle.pumpId, nozzle.initialReading])
+            )
+          : new Map(
+              (
+                await previousReadingBaselines(
+                  db,
+                  ctx.user.unitId,
+                  input.closureDate,
+                  input.shift
+                )
+              ).map(nozzle => [nozzle.pumpId, nozzle.finalReading])
+            );
+        for (const nozzle of input.nozzles) {
+          const pump = pumps.find(item => item.id === nozzle.pumpId)!;
+          const expected = expectedReadings.get(nozzle.pumpId);
+          if (expected === undefined)
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: `${pump.number}: não há leitura anterior finalizada. Solicite ao gerente a inicialização da base.`,
+            });
+          if (parseReading(nozzle.initialReading) !== parseReading(expected))
+            throw new TRPCError({
+              code: "FORBIDDEN",
+              message: `${pump.number}: frentistas não podem alterar a leitura inicial. Recarregue o fechamento para usar a leitura-base atual.`,
+            });
+        }
+      }
+
       const nozzleValues = input.nozzles.map(n => {
         const pump = pumps.find(p => p.id === n.pumpId)!;
         const initialMilli = parseReading(n.initialReading);
@@ -1558,6 +1663,29 @@ const closuresRouter = router({
           });
         if (ctx.user.role === "frentista" && closure.createdBy !== ctx.user.id)
           throw new TRPCError({ code: "FORBIDDEN" });
+        if (ctx.user.role === "frentista") {
+          const [savedNozzles, latestReadings] = await Promise.all([
+            tx
+              .select({
+                pumpId: closureNozzles.pumpId,
+                initialReading: closureNozzles.initialReading,
+              })
+              .from(closureNozzles)
+              .where(eq(closureNozzles.closureId, closure.id)),
+            previousReadingBaselines(
+              tx,
+              closure.unitId,
+              closure.closureDate,
+              closure.shift
+            ),
+          ]);
+          if (!matchesLatestReadingBaseline(savedNozzles, latestReadings))
+            throw new TRPCError({
+              code: "CONFLICT",
+              message:
+                "A leitura-base mudou desde que o rascunho foi salvo. Peça ao gerente para revisar a leitura inicial antes do envio.",
+            });
+        }
         if (!closure.employeeConfirmed || !closure.responsibleConfirmed)
           throw new TRPCError({
             code: "BAD_REQUEST",
@@ -1657,6 +1785,27 @@ const closuresRouter = router({
           throw new TRPCError({
             code: "CONFLICT",
             message: "Fechamento não está aguardando conferência.",
+          });
+        const [savedNozzles, latestReadings] = await Promise.all([
+          tx
+            .select({
+              pumpId: closureNozzles.pumpId,
+              initialReading: closureNozzles.initialReading,
+            })
+            .from(closureNozzles)
+            .where(eq(closureNozzles.closureId, closure.id)),
+          previousReadingBaselines(
+            tx,
+            closure.unitId,
+            closure.closureDate,
+            closure.shift
+          ),
+        ]);
+        if (!matchesLatestReadingBaseline(savedNozzles, latestReadings))
+          throw new TRPCError({
+            code: "CONFLICT",
+            message:
+              "A leitura-base mudou enquanto o fechamento aguardava conferência. Um administrador deve reabri-lo e revisar as leituras antes de confirmar.",
           });
         if (
           !input.participants.some(
@@ -1762,10 +1911,16 @@ const closuresRouter = router({
           )
           .limit(1)
           .for("update");
-        if (!closure || closure.deletedAt || closure.status !== "finalizado")
+        if (
+          !closure ||
+          closure.deletedAt ||
+          (closure.status !== "finalizado" &&
+            closure.status !== "aguardando_conferencia")
+        )
           throw new TRPCError({
             code: "CONFLICT",
-            message: "Somente fechamentos finalizados podem ser reabertos.",
+            message:
+              "Somente fechamentos aguardando conferência ou finalizados podem ser enviados para revisão.",
           });
         await tx
           .update(closures)
@@ -1782,7 +1937,7 @@ const closuresRouter = router({
           targetId: input.id,
           action: "reopened",
           field: "status",
-          beforeValue: "finalizado",
+          beforeValue: closure.status,
           afterValue: "reaberto",
           reason: input.reason,
         });

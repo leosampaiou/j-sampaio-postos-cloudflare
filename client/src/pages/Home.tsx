@@ -6,6 +6,8 @@ import {
   lastDayOfMonth,
   shiftCalendarDate,
 } from "@shared/businessDate";
+import { parseCurrencyCents } from "@shared/currency";
+import { parseReadingMilli } from "@shared/closureReadings";
 import { FuelTypeBadge } from "@/components/FuelType";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -459,6 +461,8 @@ export default function Home({
           const Icon = item.icon;
           const active =
             location === item.href ||
+            (item.href === "/fechamento/novo" &&
+              location.startsWith("/fechamento")) ||
             (item.href === "/estoque" && location.startsWith("/estoque"));
           return (
             <Link
@@ -1136,15 +1140,22 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
     Record<number, { initial: string; final: string }>
   >({});
   const [paymentValues, setPaymentValues] = useState({
-    dinheiro: "0,00",
-    pix: "0,00",
-    debito: "0,00",
-    credito: "0,00",
+    dinheiro: "",
+    pix: "",
+    debito: "",
+    credito: "",
   });
   const [changeReason, setChangeReason] = useState("");
   const [loadedClosureId, setLoadedClosureId] = useState<number | null>(null);
   const initialParticipantSelection = useRef(false);
   const pumps = trpc.settings.pumps.useQuery();
+  const readingBaseline = trpc.closures.readingBaseline.useQuery(
+    {
+      closureDate,
+      shift: shift as "manha" | "tarde" | "noite",
+    },
+    { enabled: !closureId }
+  );
   const staff = trpc.employees.list.useQuery();
   const participantOptions = trpc.employees.participantOptions.useQuery();
   const utils = trpc.useUtils();
@@ -1229,11 +1240,22 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
     });
     setLoadedClosureId(closureId);
   }, [closureId, editing.data, loadedClosureId]);
+  const baselineByPump = new Map(
+    (readingBaseline.data ?? []).map(item => [item.pumpId, item])
+  );
   const calculated = (pumps.data ?? []).map(p => {
-    const v = readings[p.id] ?? { initial: "0", final: "0" };
-    const initial = Number(v.initial.replace(",", ".")) || 0;
-    const final = Number(v.final.replace(",", ".")) || 0;
-    const liters = Math.max(0, final - initial);
+    const v = readings[p.id] ?? {
+      initial: closureId
+        ? ""
+        : String(baselineByPump.get(p.id)?.finalReading ?? ""),
+      final: "",
+    };
+    const initialMilli = parseReadingMilli(v.initial);
+    const finalMilli = parseReadingMilli(v.final);
+    const litersMilli =
+      initialMilli !== null && finalMilli !== null && finalMilli >= initialMilli
+        ? finalMilli - initialMilli
+        : null;
     const priceCents = closureId
       ? (editing.data?.nozzles.find((n: any) => n.pumpId === p.id)
           ?.priceCents ?? p.priceCents)
@@ -1241,19 +1263,42 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
     return {
       ...p,
       priceCents,
-      initial,
-      final,
-      liters,
-      valueCents: Math.round(liters * priceCents),
+      initialInput: v.initial,
+      finalInput: v.final,
+      initialMilli,
+      finalMilli,
+      liters: litersMilli === null ? null : litersMilli / 1000,
+      valueCents:
+        litersMilli === null
+          ? null
+          : Math.round((litersMilli * priceCents) / 1000),
     };
   });
-  const salesCents = calculated.reduce((s, p) => s + p.valueCents, 0);
+  const readingsComplete =
+    calculated.length > 0 && calculated.every(p => p.liters !== null);
+  const salesCents = calculated.reduce((s, p) => s + (p.valueCents ?? 0), 0);
   const payments = ["dinheiro", "pix", "debito", "credito"].map(method => ({
     method: method as keyof typeof paymentValues,
-    amountCents: toCents(paymentValues[method as keyof typeof paymentValues]),
+    amountCents: parseCurrencyCents(
+      paymentValues[method as keyof typeof paymentValues]
+    ),
   }));
-  const receivedCents = payments.reduce((s, p) => s + p.amountCents, 0);
-  const difference = receivedCents - salesCents;
+  const paymentPayload = payments.flatMap(payment =>
+    payment.amountCents === null
+      ? []
+      : [{ method: payment.method, amountCents: payment.amountCents }]
+  );
+  const paymentsComplete = paymentPayload.length === payments.length;
+  const receivedCents = paymentsComplete
+    ? paymentPayload.reduce((sum, payment) => sum + payment.amountCents, 0)
+    : null;
+  const difference =
+    readingsComplete && receivedCents !== null
+      ? receivedCents - salesCents
+      : null;
+  const pendingFinancialsLabel = readingsComplete
+    ? "Aguardando recebimentos"
+    : "Aguardando leituras";
   const handleReading = (
     id: number,
     field: "initial" | "final",
@@ -1261,7 +1306,15 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
   ) =>
     setReadings(old => ({
       ...old,
-      [id]: { ...(old[id] ?? { initial: "0", final: "0" }), [field]: value },
+      [id]: {
+        ...(old[id] ?? {
+          initial: closureId
+            ? ""
+            : String(baselineByPump.get(id)?.finalReading ?? ""),
+          final: "",
+        }),
+        [field]: value,
+      },
     }));
   const toggleParticipant = (id: number, selected: boolean) => {
     setParticipants(current => toggleClosureParticipant(current, id, selected));
@@ -1284,6 +1337,13 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
       toast.error(
         "Os cadastros necessários não foram carregados; tente novamente antes de salvar."
       );
+      return;
+    }
+    if (!closureId && user.role === "frentista" && readingBaseline.isError) {
+      toast.error(
+        "Não foi possível consultar as leituras anteriores. Tente novamente antes de salvar."
+      );
+      setStep(2);
       return;
     }
     if (
@@ -1329,9 +1389,38 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
       setStep(1);
       return;
     }
-    if (calculated.some(n => n.final < n.initial)) {
+    if (
+      calculated.some(n => n.initialMilli === null || n.finalMilli === null)
+    ) {
+      const missingBase =
+        user.role === "frentista" &&
+        !closureId &&
+        calculated.some(n => !baselineByPump.has(n.id));
+      toast.error(
+        missingBase
+          ? "Não há leitura anterior para um ou mais bicos. Solicite ao gerente a inicialização da base."
+          : "Preencha uma leitura inicial e final válida para cada bico. Use até três casas decimais."
+      );
+      setStep(2);
+      return;
+    }
+    if (
+      calculated.some(
+        n =>
+          n.finalMilli !== null &&
+          n.initialMilli !== null &&
+          n.finalMilli < n.initialMilli
+      )
+    ) {
       toast.error("A leitura final não pode ser menor que a inicial.");
       setStep(2);
+      return;
+    }
+    if (!paymentsComplete) {
+      toast.error(
+        "Informe um valor válido em cada modalidade; digite 0,00 quando não houver recebimento."
+      );
+      setStep(3);
       return;
     }
     if (send && (!employeeConfirmed || !responsibleConfirmed)) {
@@ -1356,13 +1445,10 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
       responsibleConfirmed,
       nozzles: calculated.map(n => ({
         pumpId: n.id,
-        initialReading: String(n.initial),
-        finalReading: String(n.final),
+        initialReading: n.initialInput,
+        finalReading: n.finalInput,
       })),
-      payments: payments.map(p => ({
-        method: p.method,
-        amountCents: p.amountCents,
-      })),
+      payments: paymentPayload,
     };
     if (!navigator.onLine) {
       const stored = saveOfflineDraft(user.id, payload);
@@ -1390,6 +1476,7 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
         await Promise.all([
           utils.closures.list.invalidate(),
           utils.closures.listPage.invalidate(),
+          utils.closures.readingBaseline.invalidate(),
           utils.inventory.dashboard.invalidate(),
           utils.analytics.dashboard.invalidate(),
         ]);
@@ -1498,14 +1585,26 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
             : "Preencha os dados do turno em quatro etapas. Os cálculos são atualizados automaticamente."
         }
       />
-      {(pumps.isError || staff.isError || participantOptions.isError) && (
+      {(pumps.isError ||
+        staff.isError ||
+        participantOptions.isError ||
+        (!closureId &&
+          user.role === "frentista" &&
+          readingBaseline.isError)) && (
         <QueryError
-          message="Não foi possível carregar cadastros ou bicos necessários ao fechamento."
+          message={
+            !closureId && user.role === "frentista" && readingBaseline.isError
+              ? "Não foi possível carregar a leitura anterior; tente novamente para continuar."
+              : "Não foi possível carregar cadastros ou bicos necessários ao fechamento."
+          }
           retry={() =>
             void Promise.all([
               pumps.refetch(),
               staff.refetch(),
               participantOptions.refetch(),
+              !closureId && user.role === "frentista"
+                ? readingBaseline.refetch()
+                : Promise.resolve(),
             ])
           }
         />
@@ -1548,7 +1647,10 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
                     id="closure-date"
                     type="date"
                     value={closureDate}
-                    onChange={e => setClosureDate(e.target.value)}
+                    onChange={e => {
+                      setClosureDate(e.target.value);
+                      if (!closureId) setReadings({});
+                    }}
                     max={dateToday()}
                   />
                 </div>
@@ -1558,7 +1660,10 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
                     id="closure-shift"
                     className="form-select"
                     value={shift}
-                    onChange={e => setShift(e.target.value)}
+                    onChange={e => {
+                      setShift(e.target.value);
+                      if (!closureId) setReadings({});
+                    }}
                   >
                     <option value="manha">Manhã</option>
                     <option value="tarde">Tarde</option>
@@ -1689,6 +1794,22 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
                   </p>
                 </div>
               </div>
+              {!closureId &&
+                !readingBaseline.isLoading &&
+                (pumps.data ?? []).some(p => !baselineByPump.has(p.id)) && (
+                  <div className="inline-alert warning-alert">
+                    <CircleAlert size={17} />
+                    {user.role === "frentista"
+                      ? "Um ou mais bicos ainda não têm leitura anterior finalizada. Peça ao gerente para estabelecer a leitura-base."
+                      : "Um ou mais bicos não têm leitura finalizada anterior. Confira e informe manualmente a leitura inicial para estabelecer a base."}
+                  </div>
+                )}
+              {!closureId && readingBaseline.isError && (
+                <div className="inline-alert warning-alert">
+                  <CircleAlert size={17} />A consulta da leitura anterior
+                  falhou. Tente novamente antes de usar uma base histórica.
+                </div>
+              )}
               <div
                 className="nozzle-table-wrap"
                 role="region"
@@ -1708,7 +1829,15 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
                   </thead>
                   <tbody>
                     {(pumps.data ?? []).map(p => {
-                      const v = readings[p.id] ?? { initial: "0", final: "0" };
+                      const v = readings[p.id] ?? {
+                        initial: closureId
+                          ? ""
+                          : String(
+                              baselineByPump.get(p.id)?.finalReading ?? ""
+                            ),
+                        final: "",
+                      };
+                      const baseline = baselineByPump.get(p.id);
                       const calc = calculated.find(n => n.id === p.id)!;
                       return (
                         <tr key={p.id}>
@@ -1720,16 +1849,38 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
                             <Input
                               inputMode="decimal"
                               value={v.initial}
+                              readOnly={user.role === "frentista"}
+                              placeholder={
+                                user.role === "frentista"
+                                  ? "Aguardando leitura-base"
+                                  : "Informe a leitura inicial"
+                              }
                               onChange={e =>
                                 handleReading(p.id, "initial", e.target.value)
                               }
                               aria-label={`Leitura inicial ${p.number}`}
+                              aria-describedby={`reading-origin-${p.id}`}
                             />
+                            <small
+                              className="reading-origin"
+                              id={`reading-origin-${p.id}`}
+                            >
+                              {closureId
+                                ? user.role === "frentista"
+                                  ? "Leitura registrada no rascunho; não editável."
+                                  : "Leitura inicial registrada no fechamento."
+                                : baseline
+                                  ? `Base: ${dateLabel(baseline.closureDate)} · ${shiftLabel(baseline.shift)}`
+                                  : user.role === "frentista"
+                                    ? "Sem base anterior; solicite ao gerente."
+                                    : "Sem histórico; informe a base inicial."}
+                            </small>
                           </td>
                           <td data-label="Leitura final">
                             <Input
                               inputMode="decimal"
                               value={v.final}
+                              placeholder="Informe a leitura final"
                               onChange={e =>
                                 handleReading(p.id, "final", e.target.value)
                               }
@@ -1737,7 +1888,7 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
                             />
                           </td>
                           <td data-label="Litros vendidos" className="tabular">
-                            {liters(calc.liters)}
+                            {calc.liters === null ? "—" : liters(calc.liters)}
                           </td>
                           <td data-label="Preço por litro" className="tabular">
                             {brl(p.priceCents)}
@@ -1746,7 +1897,9 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
                             data-label="Valor vendido"
                             className="tabular strong"
                           >
-                            {brl(calc.valueCents)}
+                            {calc.valueCents === null
+                              ? "—"
+                              : brl(calc.valueCents)}
                           </td>
                         </tr>
                       );
@@ -1756,10 +1909,17 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
                     <tr>
                       <td colSpan={3}>TOTAL GERAL</td>
                       <td>
-                        {liters(calculated.reduce((s, n) => s + n.liters, 0))}
+                        {readingsComplete
+                          ? liters(
+                              calculated.reduce(
+                                (sum, item) => sum + (item.liters ?? 0),
+                                0
+                              )
+                            )
+                          : "—"}
                       </td>
                       <td>—</td>
-                      <td>{brl(salesCents)}</td>
+                      <td>{readingsComplete ? brl(salesCents) : "—"}</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -1801,6 +1961,8 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
                           id={`pay-${key}`}
                           inputMode="decimal"
                           value={paymentValues[key]}
+                          placeholder="0,00"
+                          aria-describedby="payment-values-help"
                           onChange={e =>
                             setPaymentValues(old => ({
                               ...old,
@@ -1813,29 +1975,44 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
                   </div>
                 ))}
               </div>
+              <p className="payment-values-help" id="payment-values-help">
+                Preencha as quatro modalidades; digite 0,00 nas que não tiveram
+                recebimento.
+              </p>
               <div className="receipt-total">
                 <span>Total recebido</span>
-                <strong>{brl(receivedCents)}</strong>
+                <strong>
+                  {receivedCents === null
+                    ? "Modalidades pendentes"
+                    : brl(receivedCents)}
+                </strong>
               </div>
               <div
-                className={`difference-callout ${Math.abs(difference) <= 0 ? "balanced" : difference > 0 ? "surplus" : "shortage"}`}
+                className={`difference-callout ${difference === null ? "incomplete" : difference === 0 ? "balanced" : difference > 0 ? "surplus" : "shortage"}`}
               >
                 <div>
                   <span>Diferença em relação às vendas</span>
                   <strong>
-                    {difference > 0 ? "+" : ""}
-                    {brl(difference)}
+                    {difference !== null
+                      ? `${difference > 0 ? "+" : ""}${brl(difference)}`
+                      : readingsComplete
+                        ? "Preencha os recebimentos para calcular."
+                        : "Complete as leituras e os recebimentos para calcular."}
                   </strong>
                 </div>
-                <span className="result-pill">
-                  {resultLabel(
-                    Math.abs(difference) <= 0
-                      ? "conferido"
-                      : difference > 0
-                        ? "sobra"
-                        : "falta"
-                  )}
-                </span>
+                {difference !== null ? (
+                  <span className="result-pill">
+                    {resultLabel(
+                      difference === 0
+                        ? "conferido"
+                        : difference > 0
+                          ? "sobra"
+                          : "falta"
+                    )}
+                  </span>
+                ) : (
+                  <span className="result-pill">{pendingFinancialsLabel}</span>
+                )}
               </div>
             </>
           )}
@@ -1913,32 +2090,34 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
                 <div className="review-divider" />
                 <div className="review-row">
                   <span>Total de vendas</span>
-                  <strong>{brl(salesCents)}</strong>
+                  <strong>
+                    {readingsComplete ? brl(salesCents) : "Leituras pendentes"}
+                  </strong>
                 </div>
                 <div className="review-row">
                   <span>Total recebido</span>
-                  <strong>{brl(receivedCents)}</strong>
+                  <strong>
+                    {receivedCents === null
+                      ? "Modalidades pendentes"
+                      : brl(receivedCents)}
+                  </strong>
                 </div>
                 <div className="review-row">
                   <span>Diferença</span>
                   <strong
                     className={
-                      difference > 0
-                        ? "text-warning"
-                        : difference < 0
-                          ? "text-danger"
-                          : "text-success"
+                      difference === null
+                        ? ""
+                        : difference > 0
+                          ? "text-warning"
+                          : difference < 0
+                            ? "text-danger"
+                            : "text-success"
                     }
                   >
-                    {difference > 0 ? "+" : ""}
-                    {brl(difference)} ·{" "}
-                    {resultLabel(
-                      difference === 0
-                        ? "conferido"
-                        : difference > 0
-                          ? "sobra"
-                          : "falta"
-                    )}
+                    {difference !== null
+                      ? `${difference > 0 ? "+" : ""}${brl(difference)} · ${resultLabel(difference === 0 ? "conferido" : difference > 0 ? "sobra" : "falta")}`
+                      : pendingFinancialsLabel}
                   </strong>
                 </div>
               </div>
@@ -2032,38 +2211,49 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
               <div className="summary-separator" />
               <div className="summary-value">
                 <span>Vendas calculadas</span>
-                <strong>{brl(salesCents)}</strong>
+                <strong>
+                  {readingsComplete ? brl(salesCents) : "Leituras pendentes"}
+                </strong>
               </div>
               <div className="summary-value">
                 <span>Total recebido</span>
-                <strong>{brl(receivedCents)}</strong>
+                <strong>
+                  {receivedCents === null
+                    ? "Modalidades pendentes"
+                    : brl(receivedCents)}
+                </strong>
               </div>
               <div className="summary-value">
                 <span>Diferença</span>
                 <strong
                   className={
-                    difference === 0
-                      ? "text-success"
-                      : difference > 0
-                        ? "text-warning"
-                        : "text-danger"
+                    difference === null
+                      ? ""
+                      : difference === 0
+                        ? "text-success"
+                        : difference > 0
+                          ? "text-warning"
+                          : "text-danger"
                   }
                 >
-                  {difference > 0 ? "+" : ""}
-                  {brl(difference)}
+                  {difference !== null
+                    ? `${difference > 0 ? "+" : ""}${brl(difference)}`
+                    : pendingFinancialsLabel}
                 </strong>
               </div>
               <div
-                className={`summary-result ${difference === 0 ? "success" : difference > 0 ? "warning" : "danger"}`}
+                className={`summary-result ${difference === null ? "incomplete" : difference === 0 ? "success" : difference > 0 ? "warning" : "danger"}`}
               >
                 <span />
-                {resultLabel(
-                  difference === 0
-                    ? "conferido"
-                    : difference > 0
-                      ? "sobra"
-                      : "falta"
-                )}
+                {difference !== null
+                  ? resultLabel(
+                      difference === 0
+                        ? "conferido"
+                        : difference > 0
+                          ? "sobra"
+                          : "falta"
+                    )
+                  : "Aguardando leituras"}
               </div>
               <small className="summary-footnote">
                 Rascunhos só são considerados gravados após confirmação do
@@ -2098,16 +2288,16 @@ function ClosureTable({
 }) {
   const [search, setSearch] = useState("");
   const [resultFilter, setResultFilter] = useState("all");
+  const normalizedSearch = search.trim().toLocaleLowerCase("pt-BR");
   const filtered = rows.filter(row => {
     const matchesSearch =
-      `${row.employeeName ?? ""} ${row.responsibleName ?? ""} ${row.closureDate ?? ""}`
-        .toLowerCase()
-        .includes(search.toLowerCase());
+      `${row.employeeName ?? ""} ${row.responsibleName ?? ""} ${row.closureDate ?? ""} ${row.closureDate ? dateLabel(row.closureDate) : ""}`
+        .toLocaleLowerCase("pt-BR")
+        .includes(normalizedSearch);
     const matchesResult =
       resultFilter === "all" ||
       (resultFilter === "aguardando_conferencia" &&
-        (row.status === "aguardando_conferencia" ||
-          row.result === "pendente")) ||
+        row.status === "aguardando_conferencia") ||
       (resultFilter === "rascunho" && row.status === "rascunho") ||
       (resultFilter === "reaberto" && row.status === "reaberto") ||
       row.result === resultFilter;
@@ -2195,7 +2385,11 @@ function ClosureTable({
                         ? "Arquivado"
                         : row.status === "aguardando_conferencia"
                           ? "Aguardando"
-                          : resultLabel(row.result)}
+                          : row.status === "rascunho"
+                            ? "Rascunho"
+                            : row.status === "reaberto"
+                              ? "Reaberto"
+                              : resultLabel(row.result)}
                     </span>
                   </td>
                   <td data-label="Ações">
@@ -2219,6 +2413,12 @@ function ClosureTable({
           title="Nenhum fechamento encontrado"
           detail="Ajuste a busca ou inicie um novo fechamento para preencher o histórico."
         />
+      )}
+      {hasMore && onLoadMore && !compact && (
+        <p className="table-search-note" role="status">
+          Busca e situação filtram os registros carregados. Carregue mais para
+          ampliar os resultados.
+        </p>
       )}
       {hasMore && onLoadMore && (
         <div className="table-load-more">
@@ -2250,6 +2450,7 @@ function HistoryPage({ user }: { user: User }) {
       : null
   );
   const [showArchived, setShowArchived] = useState(false);
+  const invalidPeriod = Boolean(from && to && from > to);
   const query = trpc.closures.listPage.useInfiniteQuery(
     {
       from: from || undefined,
@@ -2258,11 +2459,14 @@ function HistoryPage({ user }: { user: User }) {
       limit: 50,
     },
     {
+      enabled: !invalidPeriod,
       getNextPageParam: lastPage => lastPage.nextCursor ?? undefined,
       retry: false,
     }
   );
-  const rows = query.data?.pages.flatMap(page => page.items) ?? [];
+  const rows = invalidPeriod
+    ? []
+    : (query.data?.pages.flatMap(page => page.items) ?? []);
   const detail = trpc.closures.detail.useQuery(
     { id: selected ?? 0 },
     { enabled: Boolean(selected) }
@@ -2276,6 +2480,7 @@ function HistoryPage({ user }: { user: User }) {
       await Promise.all([
         query.refetch(),
         detail.refetch(),
+        utils.closures.readingBaseline.invalidate(),
         utils.inventory.dashboard.invalidate(),
         utils.analytics.dashboard.invalidate(),
       ]);
@@ -2288,6 +2493,7 @@ function HistoryPage({ user }: { user: User }) {
       await Promise.all([
         query.refetch(),
         detail.refetch(),
+        utils.closures.readingBaseline.invalidate(),
         utils.inventory.dashboard.invalidate(),
         utils.analytics.dashboard.invalidate(),
       ]);
@@ -2302,6 +2508,7 @@ function HistoryPage({ user }: { user: User }) {
         utils.analytics.dashboard.invalidate(),
       ]);
       setSelected(null);
+      setLocation("/historico");
       toast.success("Rascunho arquivado. Os dados foram preservados.");
     },
     onError: error => toast.error(error.message),
@@ -2310,6 +2517,7 @@ function HistoryPage({ user }: { user: User }) {
     onSuccess: async () => {
       await Promise.all([query.refetch(), utils.closures.list.invalidate()]);
       setSelected(null);
+      setLocation("/historico");
       toast.success("Rascunho restaurado ao histórico ativo.");
     },
     onError: error => toast.error(error.message),
@@ -2368,26 +2576,39 @@ function HistoryPage({ user }: { user: User }) {
           Limpar filtros
         </Button>
         <span className="filter-count" aria-live="polite">
-          {query.isError ? "—" : rows.length} registros
+          {invalidPeriod
+            ? "Período inválido"
+            : query.isError
+              ? "—"
+              : `${rows.length} registros carregados`}
           {showArchived ? " arquivados" : " ativos"}
         </span>
       </div>
-      <ClosureTable
-        rows={rows}
-        loading={query.isLoading}
-        error={query.isError}
-        retry={() => query.refetch()}
-        hasMore={query.hasNextPage}
-        loadingMore={query.isFetchingNextPage}
-        onLoadMore={() => void query.fetchNextPage()}
-      />
+      {invalidPeriod ? (
+        <div className="inline-alert" role="alert">
+          A data inicial não pode ser posterior à data final.
+        </div>
+      ) : (
+        <ClosureTable
+          rows={rows}
+          loading={query.isLoading}
+          error={query.isError}
+          retry={() => query.refetch()}
+          hasMore={query.hasNextPage}
+          loadingMore={query.isFetchingNextPage}
+          onLoadMore={() => void query.fetchNextPage()}
+        />
+      )}
       {selected && (
         <DetailModal
           closure={detail.data}
           loading={detail.isLoading}
           error={detail.isError}
           retry={() => detail.refetch()}
-          onClose={() => setSelected(null)}
+          onClose={() => {
+            setSelected(null);
+            setLocation("/historico");
+          }}
           onConfirm={user.role !== "frentista" ? confirmClosure : undefined}
           confirmBusy={confirm.isPending}
           participantOptions={participantOptions.data ?? []}
@@ -2863,11 +3084,15 @@ function DetailModal({
                         : "Confirmar rateio e conferir"}
                     </Button>
                   )}
-                  {onReopen && closure.status === "finalizado" && (
-                    <Button variant="outline" onClick={onReopen}>
-                      Reabrir
-                    </Button>
-                  )}
+                  {onReopen &&
+                    (closure.status === "finalizado" ||
+                      closure.status === "aguardando_conferencia") && (
+                      <Button variant="outline" onClick={onReopen}>
+                        {closure.status === "aguardando_conferencia"
+                          ? "Retornar para revisão"
+                          : "Reabrir"}
+                      </Button>
+                    )}
                   {onEdit && closure.status === "reaberto" && (
                     <Button className="primary-button" onClick={onEdit}>
                       Editar correção
@@ -3012,13 +3237,17 @@ function DetailModal({
 function ReportsPage() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
-  const query = trpc.analytics.report.useQuery({
-    from: from || undefined,
-    to: to || undefined,
-  });
+  const invalidPeriod = Boolean(from && to && from > to);
+  const query = trpc.analytics.report.useQuery(
+    {
+      from: from || undefined,
+      to: to || undefined,
+    },
+    { enabled: !invalidPeriod }
+  );
   const completed =
     query.data?.filter(row => row.status === "finalizado") ?? [];
-  const ready = !query.isLoading && !query.isError;
+  const ready = !invalidPeriod && !query.isLoading && !query.isError;
   const sales = completed.reduce((sum, row) => sum + row.salesCents, 0);
   const receipts = completed.reduce((sum, row) => sum + row.receivedCents, 0);
   const discrepancies = completed.filter(
@@ -3070,11 +3299,13 @@ function ReportsPage() {
           />
         </div>
         <span className="filter-count">
-          {query.isLoading
-            ? "Carregando…"
-            : query.isError
-              ? "—"
-              : `${completed.length} fechamentos finalizados`}
+          {invalidPeriod
+            ? "Período inválido"
+            : query.isLoading
+              ? "Carregando…"
+              : query.isError
+                ? "—"
+                : `${completed.length} fechamentos finalizados`}
         </span>
         <p className="active-filter-summary" role="status" aria-live="polite">
           Período aplicado:{" "}
@@ -3087,7 +3318,12 @@ function ReportsPage() {
                 : "todos os períodos"}
         </p>
       </div>
-      {query.isError && (
+      {invalidPeriod && (
+        <div className="inline-alert" role="alert">
+          A data inicial não pode ser posterior à data final.
+        </div>
+      )}
+      {query.isError && !invalidPeriod && (
         <QueryError
           message="O relatório não foi carregado; os totais não representam ausência de registros."
           retry={() => query.refetch()}
@@ -3127,7 +3363,9 @@ function ReportsPage() {
           <div className="query-data-state" role="status">
             {query.isLoading
               ? "Carregando dados do relatório…"
-              : "Resumo indisponível por falha na consulta."}
+              : invalidPeriod
+                ? "Corrija o intervalo para consultar o resumo."
+                : "Resumo indisponível por falha na consulta."}
           </div>
         ) : (
           <div
@@ -3196,13 +3434,19 @@ function ReportsPage() {
           title="Divergências do período"
           subtitle="Registro objetivo, sem presumir responsabilidade"
         />
-        <ClosureTable
-          rows={ready ? discrepancies : []}
-          loading={query.isLoading}
-          error={query.isError}
-          retry={() => query.refetch()}
-          compact
-        />
+        {invalidPeriod ? (
+          <div className="panel tank-empty">
+            Corrija o período para listar as divergências.
+          </div>
+        ) : (
+          <ClosureTable
+            rows={ready ? discrepancies : []}
+            loading={query.isLoading}
+            error={query.isError}
+            retry={() => query.refetch()}
+            compact
+          />
+        )}
       </div>
     </div>
   );

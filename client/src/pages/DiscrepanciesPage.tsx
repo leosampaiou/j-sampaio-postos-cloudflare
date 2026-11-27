@@ -619,6 +619,10 @@ export default function DiscrepanciesPage({ user }: { user: User }) {
           </div>
           {trend.isError ? (
             <QueryError retry={() => trend.refetch()} />
+          ) : trend.isLoading ? (
+            <div className="table-loading" role="status">
+              Carregando evolução mensal…
+            </div>
           ) : trendRows.length ? (
             <div className="chart-wrap">
               <ResponsiveContainer width="100%" height="100%">
@@ -700,6 +704,10 @@ export default function DiscrepanciesPage({ user }: { user: User }) {
           </div>
           {trend.isError ? (
             <QueryError retry={() => trend.refetch()} />
+          ) : trend.isLoading ? (
+            <div className="table-loading" role="status">
+              Carregando frequência…
+            </div>
           ) : trendRows.length ? (
             <div className="chart-wrap">
               <ResponsiveContainer width="100%" height="100%">

@@ -1424,3 +1424,27 @@ Evidências em 23/11/2026: o cálculo considera todos os fechamentos finalizados
 - Ao finalizar ou reconciliar uma revisão, somar as vendas de todos os bicos mapeados ao mesmo tanque e gravar apenas a baixa/delta líquido por tanque; preservar dados detalhados por bico para fechamento e autonomia.
 - Reconciliações devem considerar movimentos legados e revisões anteriores por fechamento/tanque, criar movimentos compensatórios para mudanças e usar chaves idempotentes. O histórico/API agrupa movimentos existentes por fechamento/tanque/revisão para exibir totais sem editar, apagar ou recriar os dados já armazenados.
 - Cobrir os agrupamentos, sinais/deltas e preservação de movimentos históricos por testes unitários; rodar `pnpm check`, `pnpm test`, `pnpm build`, Prettier e `git diff --check`. Não conectar ao banco real, aplicar migrations, publicar ou enviar código ao remoto.
+
+## Leituras base e correções responsivas de Estoque/Interface — 27/11/2026
+
+### [ ] Leitura inicial herdada com proteção de servidor
+
+- Consultar apenas a leitura final elegível mais recente do mesmo bico/unidade, em fechamento finalizado e não arquivado, anterior à data/turno selecionado; excluir rascunhos, pendentes e registros posteriores. Respeitar a ordem explícita dos turnos e retornar apenas campos mínimos.
+- Preencher a leitura inicial com esse valor. Na conta de frentista, bloquear edição na interface e rejeitar adulteração na API tanto em novos fechamentos como ao continuar rascunhos próprios; gerente/administrador mantém as permissões atuais. Sem histórico, não inventar zero e orientar a inicialização por gerente/administrador.
+- Deixar a leitura final vazia por padrão; permitir zero digitado explicitamente; manter vazio distinto de zero e não converter entradas vazias/inválidas antes da validação. Exibir estado/cálculo incompleto sem sugerir vendas zeradas e impedir salvar/finalizar leituras incompletas com orientação clara. Preservar sync/offline para valores válidos e sinalizar conflitos.
+- Sem mudança no banco/schema, nos dados antigos, em cálculos ou regras do fechamento; cobrir regra temporal, unidade, bico, status, ausência de histórico e bypass de frentista por testes.
+
+### [ ] Corrigir layout e acessibilidade confirmados na auditoria
+
+- Estoque/Tanques: substituir a faixa horizontal móvel problemática por navegação de duas colunas que não sobreponha rótulos/blocos; conferir larguras estreitas e estado selecionado.
+- Shell móvel: permitir rolagem da sidebar em viewport baixo; posicionar “Mais” sem cobrir a barra inferior e respeitando `safe-area-inset-bottom`; marcar como ativa a navegação correspondente ao formulário de edição de fechamento.
+- Histórico/relatórios/divergências/administração: corrigir reflow móvel e rolagem de cartões/tabelas, tornar loading/erro/foco e rótulos de controles claros, sem ocultar conteúdo ou mudar consultas, filtros, ações e permissões.
+- Rodar `pnpm check`, `pnpm test`, `pnpm build`, Prettier e `git diff --check`; revisar Preview em desktop e celular onde disponível. Não publicar sem pedido explícito; commit/push somente com autorização do usuário.
+
+### Evidências e limitações desta rodada — 27/11/2026
+
+- Implementação: consulta de base elegível por bico/unidade/data/turno; validação de leitura estrita ao salvar/enviar/conferir; leitura inicial protegida para frentista; entradas vazias permanecem incompletas; retorno administrativo à revisão; recebimentos vazios distintos de zero explícito; validação server-side das quatro modalidades distintas; ajustes responsivos e estados de loading/foco. A consulta de baseline também considera bicos já desativados para não bloquear a conferência de um fechamento pendente.
+- `pnpm exec prettier --check` passou nos arquivos alterados; `pnpm check` passou; `pnpm test` passou com 103 testes em 19 arquivos; `pnpm build` passou, com aviso de chunk principal acima de 500 kB; `git diff --check` passou.
+- Os testes unitários cobrem parsing, ordem temporal, baseline por bico/stale, modalidades de recebimento distintas e valores monetários vazios/zero. A consulta SQL e os fluxos integrados de permissão/status não foram exercitados contra banco; não houve acesso a banco/schema.
+- O Preview foi inspecionado anteriormente apenas na tela pública de login em desktop e celular. As páginas autenticadas de Estoque/Tanques não foram verificadas visualmente por falta de sessão autorizada.
+- O usuário autorizou o commit e o push desta rodada; não foi solicitada nem realizada publicação.

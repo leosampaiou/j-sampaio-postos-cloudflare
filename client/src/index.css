@@ -1050,6 +1050,12 @@ button:disabled {
   grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
+.payment-values-help {
+  margin: -3px 0 14px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
 .payment-input-card {
   border: 1px solid var(--line);
   border-radius: 10px;

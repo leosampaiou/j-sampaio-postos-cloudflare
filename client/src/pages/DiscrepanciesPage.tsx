@@ -461,7 +461,7 @@ export default function DiscrepanciesPage({ user }: { user: User }) {
     ? undefined
     : people.find(person => person.id === Number(employeeId));
   return (
-    <>
+    <div className="discrepancies-workspace">
       <div className="page-heading">
         <div>
           <span className="eyebrow">
@@ -1228,7 +1228,7 @@ export default function DiscrepanciesPage({ user }: { user: User }) {
           </section>
         </>
       )}
-    </>
+    </div>
   );
 }
 

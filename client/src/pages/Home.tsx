@@ -344,7 +344,7 @@ export default function Home({
     content = <AuditPage />;
   else content = <Dashboard user={user} />;
   return (
-    <div className="app-shell">
+    <div className="app-shell redesign-shell">
       <aside className={`sidebar ${mobileOpen ? "mobile-open" : ""}`}>
         <div className="sidebar-brand">
           <img src="/logo-jsampaio.png" alt="J Sampaio Postos" />
@@ -452,7 +452,7 @@ export default function Home({
             </div>
           </div>
         </header>
-        <div className="page-content">{content}</div>
+        <div className="page-content redesign-page-content">{content}</div>
       </main>
       <nav className="mobile-bottom-nav">
         {mobileNavItems.map(item => {
@@ -547,7 +547,7 @@ function StatCard({
   valueClassName?: string;
 }) {
   return (
-    <article className="stat-card">
+    <article className={`stat-card stat-card-${tone}`}>
       <div className={`stat-icon ${tone}`}>
         <Icon size={19} />
       </div>
@@ -626,7 +626,7 @@ function Dashboard({ user }: { user: User }) {
   });
   if (user.role === "frentista")
     return (
-      <>
+      <div className="dashboard-workspace frontline-dashboard">
         <PageHeading
           eyebrow="ÁREA OPERACIONAL"
           title={`Olá, ${user.fullName.split(" ")[0]}`}
@@ -651,12 +651,6 @@ function Dashboard({ user }: { user: User }) {
               diferença antes de enviar.
             </span>
           </div>
-          <Button
-            variant="outline"
-            onClick={() => (location.href = "/fechamento/novo")}
-          >
-            Iniciar <ArrowRight size={16} />
-          </Button>
         </div>
         <section className="section-block">
           <SectionTitle
@@ -675,7 +669,7 @@ function Dashboard({ user }: { user: User }) {
             compact
           />
         </section>
-      </>
+      </div>
     );
   const data = validCustomRange ? analytics.data : undefined;
   const metricsUnavailable =
@@ -737,11 +731,11 @@ function Dashboard({ user }: { user: User }) {
     : [];
   const colors = ["#173b7a", "#eab308", "#3aa675", "#fa9341"];
   return (
-    <>
+    <div className="dashboard-workspace management-dashboard">
       <PageHeading
         eyebrow="PAINEL DE OPERAÇÃO"
         title="Visão geral"
-        description="Acompanhe o movimento do posto e a situação dos fechamentos."
+        description="Veja o retrato de hoje, acompanhe o período escolhido e confira os tanques e fechamentos."
         action={
           <div className="heading-actions">
             <Label htmlFor="dashboard-range" className="sr-only">
@@ -1103,7 +1097,7 @@ function Dashboard({ user }: { user: User }) {
           )}
         </section>
       </div>
-    </>
+    </div>
   );
 }
 function SectionTitle({
@@ -1486,7 +1480,7 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
       </>
     );
   return (
-    <>
+    <div className="closure-workspace">
       <PageHeading
         eyebrow="ROTINA OPERACIONAL"
         title={
@@ -1516,7 +1510,7 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
           }
         />
       )}
-      <div className="wizard-progress">
+      <nav className="wizard-progress" aria-label="Etapas do fechamento">
         {["Identificação", "Leituras", "Recebimentos", "Revisão"].map(
           (label, index) => (
             <button
@@ -1533,7 +1527,7 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
             </button>
           )
         )}
-      </div>
+      </nav>
       <div
         className={`closure-layout ${step <= 2 ? "" : "closure-layout-focused"}`}
       >
@@ -2079,7 +2073,7 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
           </aside>
         )}
       </div>
-    </>
+    </div>
   );
 }
 
@@ -2158,10 +2152,10 @@ function ClosureTable({
         <div
           className="table-scroll"
           role="region"
-          aria-label="Tabela de fechamentos; deslize horizontalmente para ver todas as colunas"
+          aria-label="Fechamentos; em telas estreitas os dados são organizados em cartões"
           tabIndex={0}
         >
-          <table className="data-table">
+          <table className="data-table closure-table">
             <thead>
               <tr>
                 <th>Data</th>
@@ -2177,18 +2171,23 @@ function ClosureTable({
             <tbody>
               {filtered.map(row => (
                 <tr key={row.id}>
-                  <td>{dateLabel(row.closureDate)}</td>
-                  <td>{shiftLabel(row.shift)}</td>
-                  <td>{row.employeeName}</td>
-                  <td className="tabular strong">{brl(row.salesCents)}</td>
-                  <td className="tabular">{brl(row.receivedCents)}</td>
+                  <td data-label="Data">{dateLabel(row.closureDate)}</td>
+                  <td data-label="Turno">{shiftLabel(row.shift)}</td>
+                  <td data-label="Frentista">{row.employeeName}</td>
+                  <td data-label="Total de vendas" className="tabular strong">
+                    {brl(row.salesCents)}
+                  </td>
+                  <td data-label="Recebido" className="tabular">
+                    {brl(row.receivedCents)}
+                  </td>
                   <td
+                    data-label="Diferença"
                     className={`tabular ${row.differenceCents > 0 ? "text-warning" : row.differenceCents < 0 ? "text-danger" : ""}`}
                   >
                     {row.differenceCents > 0 ? "+" : ""}
                     {brl(row.differenceCents)}
                   </td>
-                  <td>
+                  <td data-label="Situação">
                     <span
                       className={`status-badge ${row.deletedAt ? "neutral" : row.status === "finalizado" ? (row.result === "conferido" ? "success" : "danger") : row.status === "aguardando_conferencia" ? "warning" : "neutral"}`}
                     >
@@ -2199,7 +2198,7 @@ function ClosureTable({
                           : resultLabel(row.result)}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Ações">
                     <button
                       className="table-action"
                       onClick={() =>
@@ -2319,7 +2318,7 @@ function HistoryPage({ user }: { user: User }) {
     if (selected) confirm.mutate({ id: selected, participants });
   };
   return (
-    <>
+    <div className="history-workspace">
       <PageHeading
         eyebrow="REGISTROS OPERACIONAIS"
         title="Histórico de fechamentos"
@@ -2429,7 +2428,7 @@ function HistoryPage({ user }: { user: User }) {
           restoreBusy={restore.isPending}
         />
       )}
-    </>
+    </div>
   );
 }
 
@@ -3027,7 +3026,7 @@ function ReportsPage() {
   );
 
   return (
-    <>
+    <div className="management-workspace reports-workspace">
       <PageHeading
         eyebrow="ANÁLISE GERENCIAL"
         title="Relatórios"
@@ -3205,7 +3204,7 @@ function ReportsPage() {
           compact
         />
       </div>
-    </>
+    </div>
   );
 }
 
@@ -3229,7 +3228,7 @@ function EmployeesPage() {
       ? "Dados indisponíveis"
       : `${query.data?.length ?? 0} funcionários`;
   return (
-    <>
+    <div className="management-workspace employees-workspace">
       <PageHeading
         eyebrow="EQUIPE"
         title="Funcionários"
@@ -3327,7 +3326,7 @@ function EmployeesPage() {
           />
         )}
       </div>
-    </>
+    </div>
   );
 }
 
@@ -3362,7 +3361,7 @@ function UsersPage() {
     !query.isLoading && !staff.isLoading && !query.isError && !staff.isError;
   const retry = () => Promise.all([query.refetch(), staff.refetch()]);
   return (
-    <>
+    <div className="management-workspace users-workspace">
       <PageHeading
         eyebrow="CONTROLE DE ACESSO"
         title="Usuários e permissões"
@@ -3551,7 +3550,7 @@ function UsersPage() {
           />
         )}
       </div>
-    </>
+    </div>
   );
 }
 
@@ -3582,28 +3581,28 @@ function SettingsPage() {
   }, [query.data, form]);
   if (query.isError)
     return (
-      <>
+      <div className="management-workspace settings-workspace">
         <PageHeading
           eyebrow="ADMINISTRAÇÃO"
           title="Configurações"
           description="Os valores não foram carregados; nada será presumido."
         />
         <QueryError retry={() => query.refetch()} />
-      </>
+      </div>
     );
   if (query.isLoading || !form)
     return (
-      <>
+      <div className="management-workspace settings-workspace">
         <PageHeading
           eyebrow="ADMINISTRAÇÃO"
           title="Configurações"
           description="Dados empresariais, preços vigentes e tolerância da conferência."
         />
         <div className="panel table-loading">Carregando configurações…</div>
-      </>
+      </div>
     );
   return (
-    <>
+    <div className="management-workspace settings-workspace">
       <PageHeading
         eyebrow="ADMINISTRAÇÃO"
         title="Configurações"
@@ -3780,14 +3779,14 @@ function SettingsPage() {
           </Button>
         </div>
       </form>
-    </>
+    </div>
   );
 }
 
 function AuditPage() {
   const query = trpc.audit.list.useQuery();
   return (
-    <>
+    <div className="management-workspace audit-workspace">
       <PageHeading
         eyebrow="RASTREABILIDADE"
         title="Auditoria do sistema"
@@ -3880,6 +3879,6 @@ function AuditPage() {
           />
         )}
       </div>
-    </>
+    </div>
   );
 }

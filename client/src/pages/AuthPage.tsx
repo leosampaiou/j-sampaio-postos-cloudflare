@@ -44,7 +44,7 @@ export default function AuthPage({
   const busy = login.isPending || bootstrap.isPending;
 
   return (
-    <main className="auth-page">
+    <main className="auth-page redesign-auth">
       <section className="auth-brand-panel">
         <div className="auth-brand">
           <img src="/logo-jsampaio.png" alt="J Sampaio Postos" />

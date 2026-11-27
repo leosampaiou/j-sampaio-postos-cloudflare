@@ -209,6 +209,19 @@ Preservar consultas, dados persistidos, cálculos, filtros/intervalos, validaç�
 
 Aplicar sobre os componentes existentes o estilo “ERP financeiro editorial, limpo e operacional”: aumentar a clareza da tipografia e do contraste, harmonizar superfícies/cartões e controles, destacar status sem depender somente da cor e dar consistência aos títulos, tabelas e navegação. Em celular, ajustar espaçamento e tamanhos de toque, preservar rolagem de tabelas e respeitar áreas seguras e redução de movimento. Reutilizar a paleta azul-marinho/amarelo e os sinais semânticos existentes; não substituir o logotipo nem introduzir decoração que distraia. Esta camada é somente de apresentação: nenhum endpoint, cálculo, texto/dado persistido, formulário, permissão ou transição deve ser alterado.
 
+## Repaginação integral da experiência — revisão de escopo em 27/11/2026
+
+O refinamento CSS anterior é insuficiente para o resultado desejado. Reestruturar de forma perceptível a composição das páginas e seus agrupamentos, não apenas retocar cores, fontes e bordas. A identidade J. Sampaio (logotipo e azul-marinho/amarelo) permanece como âncora, mas os layouts e a hierarquia poderão mudar substancialmente. O trabalho continua nas rotas e módulos existentes, sem criar sistemas paralelos.
+
+- **Shell/navegação:** apresentar rotas por tarefa/área, distinguir rotina e gestão, clarificar a localização e ações da página; no celular, reduzir a navegação ao essencial e manter “Novo fechamento” no alcance dos perfis já autorizados.
+- **Dashboard:** tornar o saldo de caixa, movimento, intervalo selecionado e posição dos tanques fáceis de interpretar, com prioridade operacional e menos competição visual; manter estoque logo abaixo dos indicadores e a ordem gasolina antes do diesel.
+- **Fechamento:** preservar as quatro etapas e converter o formulário denso em uma sequência visual centrada na tarefa, com progresso, contexto/resumo apenas quando útil e revisão final explícita. Não mudar os fluxos de crédito, aferição, abastecimento próprio, rateio, confirmação, salvamento offline, rascunho, envio ou finalização.
+- **Histórico e divergências:** priorizar localizar, entender status/valores e agir; apresentar detalhes e análise em agrupamentos mais claros. Manter filtros, paginação, impressões, exportações, ações, confirmação/reabertura/arquivamento/restauração, trilha e preservação separada de sobras e faltas.
+- **Estoque e administração:** cada página deve ter uma hierarquia própria, orientada ao trabalho (posição/alertas/ações; cadastros; relatórios; equipe; acesso; empresa/preços; auditoria), sem expor ao mesmo tempo controles extensos desnecessários. Preservar dados e funcionalidades existentes.
+- **Responsividade:** desenhar primeiro a leitura/tarefa em tela estreita; não reduzir desktop para “cabem todos os cards”, nem esconder campos/colunas sem alternativa acessível. Respeitar preferência por movimento reduzido, foco, teclado, alvos táteis e áreas seguras.
+
+Restrições invariáveis: React/API/DB e regras de negócio não mudam por razão estética; preservar contratos, ordem de dados, cálculos, filtros, permissões, ações e estados de erro/vazio/carregamento. Não criar dados fictícios nem remover campos/rotas. Validar com `pnpm check`, `pnpm test`, `pnpm build`, formatação, diff e inspeção do Preview. As telas autenticadas não poderão ser declaradas visualmente aprovadas sem sessão de teste autorizada. Não publicar nem enviar novo commit/push desta rodada sem que o usuário peça para esta nova entrega.
+
 Validar `pnpm check`, `pnpm test`, `pnpm build`, Prettier e `git diff --check`; revisar o Preview em desktop/celular sem inserir dados ou usar credenciais. Antes de qualquer checkpoint/push, confirmar o repositório canônico: o remoto `origin` aponta para GitHub, enquanto a configuração WebDev indica Manus. Não publicar o site sem pedido expresso.
 
 ## Salvaguardas de exclusão e baixa consolidada de tanque — 23/11/2026

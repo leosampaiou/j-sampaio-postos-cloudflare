@@ -1342,6 +1342,41 @@ Evidências em 23/11/2026: o cálculo considera todos os fechamentos finalizados
 
 ## Simplificação transversal da interface — solicitação de 23/11/2026
 
+## Repaginação integral da experiência — revisão de escopo em 27/11/2026
+
+### [ ] Reestruturar o shell e a navegação sem alterar acessos
+
+- Reorganizar visualmente navegação por rotina e gestão, o contexto/localização da página e a área de ações; reduzir ruído do topo e tornar os destinos frequentes evidentes.
+- Em celular, manter “Novo fechamento” acessível aos mesmos perfis, simplificar os demais destinos e preservar todos os caminhos autorizados. Não criar rotas nem mudar regras de perfil.
+
+### [ ] Dar nova composição ao dashboard para leitura rápida
+
+- Hierarquizar os indicadores de hoje e do período selecionado, destacar claramente o saldo líquido de caixa e sua condição (positivo/negativo/zerado), manter o filtro de período e a seção dos tanques imediatamente abaixo dos indicadores.
+- Manter os demais indicadores, gráficos, recebimentos, estado dos turnos e atalhos existentes; preservar dados, fórmulas, consultas e períodos; exibir gasolina antes de diesel no resumo dos tanques.
+
+### [ ] Reformular a experiência de fechamento e histórico
+
+- Reorganizar as quatro etapas de identificação, leituras, recebimentos e revisão como fluxo visual claro; garantir contexto e próxima ação óbvios e uma conferência final legível sem duplicar resumos.
+- No histórico, facilitar encontrar registros, entender situação/diferença e escolher ações; reorganizar filtros, linhas/cartões e detalhes sem ocultar dados, colunas, estados, paginação ou ações.
+- Preservar crédito do cliente, aferição, abastecimento próprio, rateio e sua confirmação gerencial, rascunho, armazenamento/sincronização offline, permissões, finalização, reabertura, arquivamento/restauração e geração/impressão/compartilhamento de documentos.
+
+### [ ] Reorganizar estoque, divergências e relatórios para as tarefas reais
+
+- Estoque: distinguir visualmente visão geral, operações, tanques/bicos e histórico; priorizar saldo, cobertura, autonomia e alertas; agrupar operações e cadastro; manter entradas, medições, baixas, vínculos, filtros, trilha e exportações.
+- Divergências: separar resumo individual, evolução/frequência, histórico e análise/folha de forma compreensível; manter sobras e faltas individuais e sua trilha, sem presumir culpa nem aplicar descontos automaticamente.
+- Relatórios: tornar período e totais fáceis de ler, preservando todos os indicadores, filtros, fórmulas, tabela e exportações existentes.
+
+### [ ] Repaginar equipe, usuários, configurações, auditoria e login
+
+- Dar a cada tela de gestão uma estrutura orientada à tarefa, separando cadastro/edição de consulta quando aplicável; preservar vínculos, permissões, status, campos, preços e avisos sobre efeito histórico.
+- Na auditoria, manter eventos e valores anterior/novo íntegros; no login, manter autenticação e configuração inicial seguras, identidade do posto e mensagens atuais.
+
+### [ ] Aplicar linguagem visual responsiva e validar a experiência completa
+
+- Usar composições e hierarquia realmente distintas por tarefa (não somente cores/bordas), mantendo a marca J. Sampaio. Em celular, priorizar conteúdo, ações e controles sem cortes, com teclado, foco, rótulos, toque e movimento reduzido atendidos.
+- Preservar todas as rotas, dados, contratos/API, consultas, cálculos, validações, filtros, permissões, ações, estados, transições e regras do negócio. Não inserir dados fictícios, criar módulos, nem alterar banco/schema.
+- Validar TypeScript, testes, build, formatação, diff e Preview desktop/móvel. Não usar credenciais/dados de produção; não publicar nem fazer novo commit/push sem autorização para esta entrega.
+
 ### [x] Navegação e visão geral mais simples
 - Reorganizar visualmente os destinos frequentes e administrativos que já existem, mantendo todas as rotas e as permissões por perfil. No celular, deixar “Novo fechamento” diretamente acessível para todos os perfis que já podem utilizá-lo; outros destinos continuam disponíveis em “Mais”. Não criar página nem remover opção.
 - Agrupar visualmente os indicadores existentes do dashboard por contexto “hoje” e “período”, manter a seção de tanques abaixo dos indicadores e destacar o estado/situação sem esconder métricas, atalhos ou avisos. Preservar os cálculos, consultas e filtros atuais.

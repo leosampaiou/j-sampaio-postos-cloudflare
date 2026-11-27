@@ -311,8 +311,8 @@ export default function Home({
       ? [
           { href: "/", label: "Início", icon: HomeIcon },
           { href: "/historico", label: "Fechamentos", icon: History },
-          { href: "/fechamento/novo", label: "Novo", icon: Plus },
-          { href: "/registrar-venda", label: "Produtos", icon: Barcode },
+          { href: "/fechamento/novo", label: "Fechar", icon: Plus },
+          { href: "/registrar-venda", label: "Vender", icon: Barcode },
           { href: "/divergencias", label: "Minhas", icon: CircleAlert },
         ]
       : [
@@ -658,36 +658,36 @@ function Dashboard({ user }: { user: User }) {
         <PageHeading
           eyebrow="ÁREA OPERACIONAL"
           title={`Olá, ${user.fullName.split(" ")[0]}`}
-          description="Acompanhe seus turnos e inicie um novo fechamento."
-          action={
-            <Button
-              className="primary-button"
-              onClick={() => (location.href = "/fechamento/novo")}
-            >
-              <Plus size={17} /> Novo fechamento
-            </Button>
-          }
+          description="O que você precisa fazer agora?"
         />
-        <div className="frontline-banner">
-          <div className="frontline-icon">
-            <ClipboardList size={20} />
-          </div>
-          <div>
-            <strong>Seu próximo fechamento começa aqui</strong>
-            <span>
-              Registre as leituras, informe os recebimentos e confira a
-              diferença antes de enviar.
+        <section className="frontline-actions" aria-label="Ações principais">
+          <Link
+            href="/fechamento/novo"
+            className="frontline-action-card frontline-action-closure"
+          >
+            <span className="frontline-action-icon">
+              <ClipboardList size={23} />
             </span>
-          </div>
-          <Link href="/registrar-venda" className="frontline-product-cta">
-            <Barcode size={25} />
-            <span>
-              <strong>Registrar venda</strong>
-              <small>Escaneie ou pesquise um produto</small>
+            <span className="frontline-action-copy">
+              <strong>Novo fechamento</strong>
+              <small>Registrar leituras e recebimentos</small>
             </span>
-            <ArrowRight size={20} />
+            <ArrowRight size={20} aria-hidden="true" />
           </Link>
-        </div>
+          <Link
+            href="/registrar-venda"
+            className="frontline-action-card frontline-action-sale"
+          >
+            <span className="frontline-action-icon">
+              <Barcode size={23} />
+            </span>
+            <span className="frontline-action-copy">
+              <strong>Nova venda</strong>
+              <small>Escanear ou pesquisar produto</small>
+            </span>
+            <ArrowRight size={20} aria-hidden="true" />
+          </Link>
+        </section>
         <section className="section-block">
           <SectionTitle
             title="Meus fechamentos recentes"

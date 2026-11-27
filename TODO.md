@@ -1356,6 +1356,16 @@ Evidências em 23/11/2026: o cálculo considera todos os fechamentos finalizados
 - Em funcionários e usuários, eliminar títulos/textos redundantes, tornar explícitos os vínculos já registrados e agrupar visualmente dados de identidade, associação e acesso; preservar campos, validações, papéis, vínculos e status.
 - Em configurações, tornar preços e ajustes autoexplicativos e deixar claros os estados existentes de salvamento; em auditoria, organizar detalhes/valores anterior e novo para leitura rápida, sem ocultar eventos nem substituir valores originais ambíguos.
 
+### [x] Consolidar a linguagem visual em todas as páginas existentes
+- Aplicar o estilo ERP financeiro editorial aprovado sem criar módulos: reforçar legibilidade e hierarquia em títulos, métricas, cartões, painéis, formulários, tabelas, estados e navegação; manter azul-marinho/amarelo e os significados atuais de sucesso, alerta e erro.
+- Tornar o layout mais confortável em desktop e celular, incluindo espaçamento, alvos táteis, uso de tabelas roláveis e áreas seguras da navegação móvel. Respeitar a preferência por movimento reduzido e manter todos os dados e ações visíveis/acessíveis.
+- Limitar a alteração a CSS de apresentação; preservar rotas, conteúdos, dados, APIs, consultas, cálculos, validações, filtros, permissões, fluxos e regras de negócio.
+
+### Evidências da rodada — 27/11/2026
+- `pnpm check` passou; `pnpm test` passou com 85 testes em 17 arquivos; `pnpm build` passou com o aviso de chunk principal acima de 500 kB. `prettier --check client/src/index.css` e `git diff --check` também passaram.
+- O login foi inspecionado no Preview em 1280×900 e 375×812. As páginas autenticadas não foram inspecionadas visualmente porque não havia sessão; nenhuma credencial ou dado foi inserido.
+- O diff da aplicação limita-se a estilos CSS; não houve alteração de componente React, endpoint, regra de negócio, banco, schema, commit, push ou publicação.
+
 ### [ ] Acessibilidade e legibilidade responsivas em toda a interface
 - Associar programaticamente rótulos aos controles onde isso estiver ausente; manter indicação de foco, nomes acessíveis, navegação por teclado e áreas táteis confortáveis.
 - Melhorar a leitura de textos/cabeçalhos em telas pequenas e tornar perceptível a rolagem horizontal das tabelas onde todas as colunas continuarem necessárias; não cortar ou esconder dados essenciais.

@@ -59,6 +59,7 @@ import {
   ArrowRight,
   BadgeCheck,
   Banknote,
+  Barcode,
   Bell,
   Check,
   CheckCircle2,
@@ -90,6 +91,7 @@ import {
 } from "lucide-react";
 import StockPage from "@/pages/StockPage";
 import DiscrepanciesPage from "@/pages/DiscrepanciesPage";
+import ProductSalesPage from "@/pages/ProductSalesPage";
 import TankStockOverview from "@/components/TankStockOverview";
 
 type User = {
@@ -154,6 +156,18 @@ const nav = [
     label: "Novo fechamento",
     icon: Plus,
     roles: ["frentista", "gerente", "administrador"],
+  },
+  {
+    href: "/registrar-venda",
+    label: "Vender produtos",
+    icon: Barcode,
+    roles: ["frentista", "gerente", "administrador"],
+  },
+  {
+    href: "/produtos",
+    label: "Produtos e comissões",
+    icon: Barcode,
+    roles: ["gerente", "administrador"],
   },
   {
     href: "/historico",
@@ -268,7 +282,7 @@ export default function Home({
   }, [user.id, offlineSync.mutateAsync, utils]);
   const permitted = nav.filter(n => n.roles.includes(user.role));
   const primaryNav = permitted.filter(item =>
-    ["/", "/fechamento/novo", "/historico", "/divergencias"].includes(item.href)
+    ["/", "/fechamento/novo", "/registrar-venda", "/historico", "/divergencias"].includes(item.href)
   );
   const managementNav = permitted.filter(item => !primaryNav.includes(item));
   const renderNavItems = (items: typeof permitted) =>
@@ -298,12 +312,14 @@ export default function Home({
           { href: "/", label: "Início", icon: HomeIcon },
           { href: "/historico", label: "Fechamentos", icon: History },
           { href: "/fechamento/novo", label: "Novo", icon: Plus },
+          { href: "/registrar-venda", label: "Produtos", icon: Barcode },
           { href: "/divergencias", label: "Minhas", icon: CircleAlert },
         ]
       : [
           { href: "/", label: "Início", icon: HomeIcon },
           { href: "/historico", label: "Fechamentos", icon: History },
           { href: "/fechamento/novo", label: "Novo", icon: Plus },
+          { href: "/registrar-venda", label: "Produtos", icon: Barcode },
           { href: "/estoque", label: "Estoque", icon: Fuel },
         ];
   const mobileNavHrefs = new Set(mobileNavItems.map(item => item.href));
@@ -312,14 +328,22 @@ export default function Home({
   );
   const pageTitle =
     permitted.find(n => n.href === location)?.label ??
-    (location.startsWith("/fechamento/editar")
+    (location === "/registrar-venda"
+      ? "Registrar venda"
+      : location === "/produtos"
+        ? "Produtos e comissões"
+        : location.startsWith("/fechamento/editar")
       ? "Editar fechamento"
       : location.startsWith("/fechamento")
         ? "Novo fechamento"
         : "Visão geral");
   const editMatch = location.match(/^\/fechamento\/editar\/(\d+)$/);
   let content: React.ReactNode;
-  if (location === "/fechamento/novo") content = <ClosureForm user={user} />;
+  if (location === "/registrar-venda")
+    content = <ProductSalesPage user={user} management={false} />;
+  else if (location === "/produtos" && user.role !== "frentista")
+    content = <ProductSalesPage user={user} management />;
+  else if (location === "/fechamento/novo") content = <ClosureForm user={user} />;
   else if (editMatch)
     content = <ClosureForm user={user} closureId={Number(editMatch[1])} />;
   else if (location === "/historico") content = <HistoryPage user={user} />;
@@ -655,6 +679,14 @@ function Dashboard({ user }: { user: User }) {
               diferença antes de enviar.
             </span>
           </div>
+          <Link href="/registrar-venda" className="frontline-product-cta">
+            <Barcode size={25} />
+            <span>
+              <strong>Registrar venda</strong>
+              <small>Escaneie ou pesquise um produto</small>
+            </span>
+            <ArrowRight size={20} />
+          </Link>
         </div>
         <section className="section-block">
           <SectionTitle
@@ -1156,6 +1188,13 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
     },
     { enabled: !closureId }
   );
+  const productSlot = trpc.products.slot.useQuery(
+    {
+      date: closureDate,
+      shift: shift as "manha" | "tarde" | "noite",
+    },
+    { refetchInterval: 10_000 }
+  );
   const staff = trpc.employees.list.useQuery();
   const participantOptions = trpc.employees.participantOptions.useQuery();
   const utils = trpc.useUtils();
@@ -1289,12 +1328,14 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
       : [{ method: payment.method, amountCents: payment.amountCents }]
   );
   const paymentsComplete = paymentPayload.length === payments.length;
+  const productSalesCents =
+    productSlot.data?.totalCents ?? editing.data?.productSalesCents ?? 0;
   const receivedCents = paymentsComplete
     ? paymentPayload.reduce((sum, payment) => sum + payment.amountCents, 0)
     : null;
   const difference =
     readingsComplete && receivedCents !== null
-      ? receivedCents - salesCents
+      ? receivedCents - salesCents - productSalesCents
       : null;
   const pendingFinancialsLabel = readingsComplete
     ? "Aguardando recebimentos"
@@ -1333,6 +1374,13 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
       )
     );
   const submit = async (send: boolean) => {
+    if (productSlot.isLoading || productSlot.isError) {
+      toast.error(
+        "Não foi possível consultar as vendas de produtos deste turno; tente novamente antes de salvar."
+      );
+      void productSlot.refetch();
+      return;
+    }
     if (requiredDataUnavailable) {
       toast.error(
         "Os cadastros necessários não foram carregados; tente novamente antes de salvar."
@@ -2210,9 +2258,38 @@ function ClosureForm({ user, closureId }: { user: User; closureId?: number }) {
               </div>
               <div className="summary-separator" />
               <div className="summary-value">
-                <span>Vendas calculadas</span>
+                <span>Vendas de combustível</span>
                 <strong>
                   {readingsComplete ? brl(salesCents) : "Leituras pendentes"}
+                </strong>
+              </div>
+              <div className="summary-value">
+                <span>Produtos vendidos</span>
+                <strong>
+                  {productSlot.isLoading || productSlot.isError
+                    ? "Consulta indisponível"
+                    : brl(productSalesCents)}
+                </strong>
+              </div>
+              <div className="product-slot-lines">
+                {productSlot.data?.items.map(({ item }, index) => (
+                  <div key={`${item.id}-${index}`}>
+                    <span>{item.nameSnapshot} × {item.quantity}</span>
+                    <strong>{brl(item.totalCents)}</strong>
+                  </div>
+                ))}
+                {!productSlot.isLoading &&
+                  !productSlot.isError &&
+                  !productSlot.data?.items.length && (
+                    <small>Nenhuma venda de produto neste turno.</small>
+                  )}
+              </div>
+              <div className="summary-value summary-expected-total">
+                <span>Total esperado</span>
+                <strong>
+                  {readingsComplete && !productSlot.isLoading && !productSlot.isError
+                    ? brl(salesCents + productSalesCents)
+                    : "Valores pendentes"}
                 </strong>
               </div>
               <div className="summary-value">
@@ -2351,7 +2428,8 @@ function ClosureTable({
                 <th>Data</th>
                 <th>Turno</th>
                 <th>Frentista</th>
-                <th>Total de vendas</th>
+                <th>Vendas de combustível</th>
+                <th>Vendas de produtos</th>
                 <th>Recebido</th>
                 <th>Diferença</th>
                 <th>Situação</th>
@@ -2364,8 +2442,17 @@ function ClosureTable({
                   <td data-label="Data">{dateLabel(row.closureDate)}</td>
                   <td data-label="Turno">{shiftLabel(row.shift)}</td>
                   <td data-label="Frentista">{row.employeeName}</td>
-                  <td data-label="Total de vendas" className="tabular strong">
-                    {brl(row.salesCents)}
+                  <td
+                    data-label="Vendas de combustível"
+                    className="tabular strong"
+                  >
+                    {brl(row.salesCents ?? 0)}
+                  </td>
+                  <td
+                    data-label="Vendas de produtos"
+                    className="tabular"
+                  >
+                    {brl(row.productSalesCents ?? 0)}
                   </td>
                   <td data-label="Recebido" className="tabular">
                     {brl(row.receivedCents)}
@@ -2862,6 +2949,42 @@ function DetailModal({
                     </tbody>
                   </table>
                 </div>
+                <section className="detail-product-sales">
+                  <div className="detail-product-sales-heading">
+                    <strong>Produtos vendidos</strong>
+                    <b>{brl(closure.productSalesCents ?? 0)}</b>
+                  </div>
+                  {closure.productSales?.length ? (
+                    <div className="table-scroll" role="region" aria-label="Itens vendidos no turno" tabIndex={0}>
+                      <table className="data-table">
+                        <thead>
+                          <tr>
+                            <th>Produto</th>
+                            <th>Código</th>
+                            <th>Qtd.</th>
+                            <th>Preço aplicado</th>
+                            <th>Total</th>
+                            <th>Vendedor</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {closure.productSales.map((entry: any, index: number) => (
+                            <tr key={`${entry.id}-${entry.item.id}-${index}`} className={entry.canceledAt ? "product-sale-canceled" : ""}>
+                              <td>{entry.item.nameSnapshot}{entry.canceledAt && <small>Venda cancelada</small>}</td>
+                              <td>{entry.item.barcodeSnapshot}</td>
+                              <td>{entry.item.quantity}</td>
+                              <td>{brl(entry.item.unitPriceCents)}</td>
+                              <td>{brl(entry.item.totalCents)}</td>
+                              <td>{entry.sellerName ?? "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="product-detail-empty">Nenhuma venda de produto neste fechamento.</p>
+                  )}
+                </section>
                 <div className="detail-payments">
                   <strong>Recebimentos</strong>
                   {closure.payments?.map((payment: any) => (
@@ -2884,8 +3007,16 @@ function DetailModal({
                 </div>
                 <div className="detail-totals">
                   <div>
-                    <span>Vendas</span>
+                    <span>Vendas de combustível</span>
                     <b>{brl(closure.salesCents)}</b>
+                  </div>
+                  <div>
+                    <span>Vendas de produtos</span>
+                    <b>{brl(closure.productSalesCents ?? 0)}</b>
+                  </div>
+                  <div>
+                    <span>Total esperado</span>
+                    <b>{brl(closure.salesCents + (closure.productSalesCents ?? 0))}</b>
                   </div>
                   <div>
                     <span>Recebido</span>
@@ -3248,7 +3379,12 @@ function ReportsPage() {
   const completed =
     query.data?.filter(row => row.status === "finalizado") ?? [];
   const ready = !invalidPeriod && !query.isLoading && !query.isError;
-  const sales = completed.reduce((sum, row) => sum + row.salesCents, 0);
+  const fuelSales = completed.reduce((sum, row) => sum + row.salesCents, 0);
+  const productSales = completed.reduce(
+    (sum, row) => sum + (row.productSalesCents ?? 0),
+    0
+  );
+  const sales = fuelSales + productSales;
   const receipts = completed.reduce((sum, row) => sum + row.receivedCents, 0);
   const discrepancies = completed.filter(
     row => row.result === "sobra" || row.result === "falta"
@@ -3331,9 +3467,21 @@ function ReportsPage() {
       )}
       <div className="stats-grid report-stats">
         <StatCard
-          label="Faturamento"
-          value={ready ? brl(sales) : "—"}
+          label="Vendas de combustível"
+          value={ready ? brl(fuelSales) : "—"}
           icon={Banknote}
+        />
+        <StatCard
+          label="Vendas de produtos"
+          value={ready ? brl(productSales) : "—"}
+          icon={Barcode}
+          tone="blue"
+        />
+        <StatCard
+          label="Total esperado"
+          value={ready ? brl(sales) : "—"}
+          icon={Activity}
+          tone="yellow"
         />
         <StatCard
           label="Recebimentos"
@@ -3394,7 +3542,11 @@ function ReportsPage() {
                       <td>{group.length}</td>
                       <td>
                         {brl(
-                          group.reduce((sum, row) => sum + row.salesCents, 0)
+                          group.reduce(
+                            (sum, row) =>
+                              sum + row.salesCents + (row.productSalesCents ?? 0),
+                            0
+                          )
                         )}
                       </td>
                       <td>

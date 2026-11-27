@@ -31,6 +31,8 @@ import {
   employees,
   fuelPrices,
   fuelPumps,
+  productSaleItems,
+  productSales,
   unitSettings,
   units,
   stockMovements,
@@ -48,6 +50,7 @@ import {
 } from "../shared/currency";
 import { discrepanciesRouter } from "./routers/discrepancies";
 import { inventoryRouter } from "./routers/inventory";
+import { productsRouter } from "./routers/products";
 import {
   clearSuccessfulLoginPair,
   consumeLoginAttempt,
@@ -1107,6 +1110,12 @@ const closuresRouter = router({
           .where(eq(closureParticipants.closureId, input.id))
           .orderBy(asc(closureParticipants.employeeId)),
       ]);
+      const productSalesRows = await db
+        .select({ sale: productSales, item: productSaleItems })
+        .from(productSales)
+        .innerJoin(productSaleItems, eq(productSaleItems.saleId, productSales.id))
+        .where(eq(productSales.closureId, input.id))
+        .orderBy(desc(productSales.createdAt), asc(productSaleItems.id));
       const [unit] = await db
         .select()
         .from(units)
@@ -1129,6 +1138,12 @@ const closuresRouter = router({
         nozzles,
         payments,
         participants: visibleParticipants,
+        productSales: productSalesRows.map(({ sale, item }) => ({
+          id: sale.id,
+          sellerName: ownEmployeeIds ? undefined : sale.sellerName,
+          canceledAt: sale.canceledAt,
+          item,
+        })),
         unit,
       };
     }),
@@ -1363,12 +1378,31 @@ const closuresRouter = router({
         nozzleValues.reduce((sum, n) => sum + n.valueCents, 0),
         "O total de vendas excede o limite inteiro permitido pelo PostgreSQL."
       );
+      const productSalesRows = await db
+        .select({ id: productSales.id, totalCents: productSales.totalCents })
+        .from(productSales)
+        .where(
+          and(
+            eq(productSales.unitId, ctx.user.unitId),
+            eq(productSales.closureDate, input.closureDate),
+            eq(productSales.shift, input.shift),
+            isNull(productSales.canceledAt),
+            or(
+              isNull(productSales.closureId),
+              eq(productSales.closureId, existing?.id ?? -1)
+            )!
+          )
+        );
+      const productSalesCents = checkedInteger(
+        productSalesRows.reduce((sum, sale) => sum + sale.totalCents, 0),
+        "O total de produtos excede o limite inteiro permitido pelo PostgreSQL."
+      );
       const receivedCents = checkedInteger(
         input.payments.reduce((sum, p) => sum + p.amountCents, 0),
         "O total recebido excede o limite inteiro permitido pelo PostgreSQL."
       );
       const differenceCents = checkedInteger(
-        receivedCents - salesCents,
+        receivedCents - salesCents - productSalesCents,
         "A diferença calculada excede o limite inteiro permitido pelo PostgreSQL."
       );
       const result = classify(differenceCents, toleranceCents);
@@ -1391,6 +1425,16 @@ const closuresRouter = router({
         });
 
       if (existing) {
+        if (
+          (existing.closureDate !== input.closureDate ||
+            existing.shift !== input.shift) &&
+          productSalesRows.length > 0
+        )
+          throw new TRPCError({
+            code: "CONFLICT",
+            message:
+              "Não altere data ou turno de um fechamento que já contém vendas de produtos.",
+          });
         const changeReason = input.changeReason?.trim() ?? "";
         const changes: Array<{
           field: string;
@@ -1427,6 +1471,11 @@ const closuresRouter = router({
           input.responsibleConfirmed
         );
         recordChange("salesCents", existing.salesCents, salesCents);
+        recordChange(
+          "productSalesCents",
+          existing.productSalesCents,
+          productSalesCents
+        );
         recordChange("receivedCents", existing.receivedCents, receivedCents);
         recordChange(
           "differenceCents",
@@ -1512,6 +1561,7 @@ const closuresRouter = router({
                 employeeConfirmed: input.employeeConfirmed,
                 responsibleConfirmed: input.responsibleConfirmed,
                 salesCents,
+                productSalesCents,
                 receivedCents,
                 differenceCents,
                 toleranceCents,
@@ -1545,6 +1595,18 @@ const closuresRouter = router({
                 closureId: existing!.id,
               }))
             );
+            await tx
+              .update(productSales)
+              .set({ closureId: existing!.id })
+              .where(
+                and(
+                  eq(productSales.unitId, ctx.user.unitId),
+                  eq(productSales.closureDate, input.closureDate),
+                  eq(productSales.shift, input.shift),
+                  isNull(productSales.closureId),
+                  isNull(productSales.canceledAt)
+                )
+              );
             await tx.insert(auditEvents).values(
               auditRows.map(change => ({
                 unitId: ctx.user.unitId,
@@ -1570,6 +1632,8 @@ const closuresRouter = router({
         return {
           id: existing.id,
           salesCents,
+          productSalesCents,
+          expectedSalesCents: salesCents + productSalesCents,
           receivedCents,
           differenceCents,
           result,
@@ -1591,6 +1655,7 @@ const closuresRouter = router({
               status: "rascunho",
               result,
               salesCents,
+              productSalesCents,
               receivedCents,
               differenceCents,
               toleranceCents,
@@ -1600,6 +1665,18 @@ const closuresRouter = router({
             })
             .returning({ id: closures.id });
           const id = inserted.id;
+          await tx
+            .update(productSales)
+            .set({ closureId: id })
+            .where(
+              and(
+                eq(productSales.unitId, ctx.user.unitId),
+                eq(productSales.closureDate, input.closureDate),
+                eq(productSales.shift, input.shift),
+                isNull(productSales.closureId),
+                isNull(productSales.canceledAt)
+              )
+            );
           await tx
             .insert(closureNozzles)
             .values(nozzleValues.map(n => ({ ...n, closureId: id })));
@@ -1630,7 +1707,15 @@ const closuresRouter = router({
           });
         throw error;
       }
-      return { id: saved, salesCents, receivedCents, differenceCents, result };
+      return {
+        id: saved,
+        salesCents,
+        productSalesCents,
+        expectedSalesCents: salesCents + productSalesCents,
+        receivedCents,
+        differenceCents,
+        result,
+      };
     }),
   finalize: protectedProcedure
     .input(z.object({ id: positiveIntegerSchema }))
@@ -1691,6 +1776,23 @@ const closuresRouter = router({
             code: "BAD_REQUEST",
             message: "Confirme as responsabilidades antes de enviar.",
           });
+        const saleRows = await tx
+          .select({ totalCents: productSales.totalCents })
+          .from(productSales)
+          .where(
+            and(
+              eq(productSales.closureId, closure.id),
+              isNull(productSales.canceledAt)
+            )
+          );
+        const productSalesCents = checkedInteger(
+          saleRows.reduce((sum, sale) => sum + sale.totalCents, 0),
+          "O total de produtos excede o limite inteiro permitido pelo PostgreSQL."
+        );
+        const differenceCents = checkedInteger(
+          closure.receivedCents - closure.salesCents - productSalesCents,
+          "A diferença calculada excede o limite inteiro permitido pelo PostgreSQL."
+        );
         const status: "aguardando_conferencia" | "finalizado" =
           ctx.user.role === "frentista"
             ? "aguardando_conferencia"
@@ -1698,6 +1800,9 @@ const closuresRouter = router({
         await tx
           .update(closures)
           .set({
+            productSalesCents,
+            differenceCents,
+            result: classify(differenceCents, closure.toleranceCents),
             status,
             finalizedAt: status === "finalizado" ? new Date() : null,
           })
@@ -1870,9 +1975,32 @@ const closuresRouter = router({
           reason:
             "Rateio explícito revisado e confirmado por gerente antes da finalização.",
         });
+        const saleRows = await tx
+          .select({ totalCents: productSales.totalCents })
+          .from(productSales)
+          .where(
+            and(
+              eq(productSales.closureId, closure.id),
+              isNull(productSales.canceledAt)
+            )
+          );
+        const productSalesCents = checkedInteger(
+          saleRows.reduce((sum, sale) => sum + sale.totalCents, 0),
+          "O total de produtos excede o limite inteiro permitido pelo PostgreSQL."
+        );
+        const differenceCents = checkedInteger(
+          closure.receivedCents - closure.salesCents - productSalesCents,
+          "A diferença calculada excede o limite inteiro permitido pelo PostgreSQL."
+        );
         await tx
           .update(closures)
-          .set({ status: "finalizado", finalizedAt: new Date() })
+          .set({
+            productSalesCents,
+            differenceCents,
+            result: classify(differenceCents, closure.toleranceCents),
+            status: "finalizado",
+            finalizedAt: new Date(),
+          })
           .where(eq(closures.id, input.id));
         await syncFinalizedClosure(tx, {
           closureId: input.id,
@@ -2146,7 +2274,10 @@ const analyticsRouter = router({
       const all = rows.filter(
         r => r.closureDate >= start && r.closureDate <= end
       );
-      const total = (arr: typeof rows, key: "salesCents" | "receivedCents") =>
+      const total = (
+        arr: typeof rows,
+        key: "salesCents" | "productSalesCents" | "receivedCents"
+      ) =>
         arr.reduce((sum, r) => sum + r[key], 0);
       const nozzles = all.length
         ? await db
@@ -2232,7 +2363,10 @@ const analyticsRouter = router({
         );
       const byDay = new Map<string, number>();
       all.forEach(r =>
-        byDay.set(r.closureDate, (byDay.get(r.closureDate) ?? 0) + r.salesCents)
+        byDay.set(
+          r.closureDate,
+          (byDay.get(r.closureDate) ?? 0) + r.salesCents + r.productSalesCents
+        )
       );
       const fuelStats = {
         gasolina_comum: { liters: 0, valueCents: 0 },
@@ -2261,8 +2395,12 @@ const analyticsRouter = router({
       const netCashBalanceCents = surplusCents - shortageCents;
       return {
         totals: {
-          todaySalesCents: total(today, "salesCents"),
-          monthSalesCents: total(all, "salesCents"),
+          todaySalesCents:
+            total(today, "salesCents") + total(today, "productSalesCents"),
+          monthSalesCents:
+            total(all, "salesCents") + total(all, "productSalesCents"),
+          todayProductSalesCents: total(today, "productSalesCents"),
+          monthProductSalesCents: total(all, "productSalesCents"),
           todayReceivedCents: total(today, "receivedCents"),
           monthReceivedCents: total(all, "receivedCents"),
           monthLiters:
@@ -2352,6 +2490,7 @@ export const appRouter = router({
   analytics: analyticsRouter,
   inventory: inventoryRouter,
   discrepancies: discrepanciesRouter,
+  products: productsRouter,
   audit: auditRouter,
 });
 export type AppRouter = typeof appRouter;

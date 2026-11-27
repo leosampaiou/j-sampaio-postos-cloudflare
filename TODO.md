@@ -1448,3 +1448,36 @@ Evidências em 23/11/2026: o cálculo considera todos os fechamentos finalizados
 - Os testes unitários cobrem parsing, ordem temporal, baseline por bico/stale, modalidades de recebimento distintas e valores monetários vazios/zero. A consulta SQL e os fluxos integrados de permissão/status não foram exercitados contra banco; não houve acesso a banco/schema.
 - O Preview foi inspecionado anteriormente apenas na tela pública de login em desktop e celular. As páginas autenticadas de Estoque/Tanques não foram verificadas visualmente por falta de sessão autorizada.
 - O usuário autorizou o commit e o push desta rodada; não foi solicitada nem realizada publicação.
+
+## Vendas de produtos e comissões — solicitação de 27/11/2026
+
+### [ ] Catálogo de produtos com código de barras
+
+- Gerentes/administradores podem cadastrar, editar e inativar produto com código de barras único por unidade, nome, marca, categoria/especificação e preço de venda atual. Produto inativo não aparece para novas vendas, mas permanece no histórico; impedir exclusão que apague vendas.
+- O código de barras pode ser lido pela câmera no cadastro/venda ou digitado. Na venda, permitir busca por nome e fallback manual quando câmera/permissão não estiver disponível; scanner não é a única forma de selecionar produto.
+- Alterações no catálogo não modificam nome, código ou preço gravados em vendas passadas. Não controlar estoque físico de produtos nesta primeira versão.
+
+### [ ] Atalho de venda do frentista e atribuição segura do vendedor
+
+- A página inicial do frentista apresenta ação de alto destaque e acesso rápido “Registrar venda”; fluxo mobile permite ler o código, buscar/digitar produto, alterar quantidade e revisar itens/subtotal antes de confirmar.
+- Cada venda captura no servidor a identidade do usuário autenticado e o funcionário vinculado à conta; a API não aceita vendedor escolhido livremente pelo cliente. Registrar data/turno e unidade. Se o fechamento ainda não existir, conservar a venda vinculada ao dia/turno selecionado e associá-la ao fechamento ao salvá-lo; sem operação que a deixe sem vínculo operacional.
+- Restringir venda à unidade e ao período permitido; bloquear novas vendas para fechamento finalizado/arquivado. Usar idempotência contra duplicidade por repetição de requisição. A venda registra itens e valores, não modalidade de pagamento por item.
+- Gerente/administrador pode consultar e corrigir/cancelar de forma rastreável, com motivo; preservar snapshots e auditoria. Vendedor e itens já vendidos não são apagados por inativar produto ou alterar cadastro.
+
+### [ ] Produtos vendidos no fechamento e conferência financeira
+
+- O fechamento exibe seção “Produtos vendidos” com produto, quantidade, preço aplicado e total de produtos do dia/turno. Vendas de combustível e produtos ficam discriminadas.
+- Total esperado da conferência = vendas de combustível + vendas de produtos. O frentista continua informando recebimentos agregados em dinheiro, PIX, débito e crédito no fechamento; não redigita a forma de pagamento em cada venda. Diferença = recebimentos − total esperado e resultado respeita a tolerância configurada.
+- Produtos não alteram leitura/litros dos bicos, autonomia nem estoque dos tanques. Histórico existente sem produtos permanece preservado e representa zero produto sem alterar recebimentos/cálculos antigos. Relatório de produto/venda deve evitar dupla contagem entre turnos e períodos.
+
+### [ ] Comissão configurável, inicialmente desativada
+
+- Implementar por produto comissão configurável como percentual do preço ou valor fixo por unidade; a comissão inicia desativada por unidade e só passa a ser calculada após ativação/configuração explícita por usuário autorizado.
+- Em cada venda, congelar modalidade, taxa/valor aplicado e comissão calculada em centavos; alterações posteriores não recalculam o histórico. Permitir relatório por vendedor e período.
+- Não efetuar pagamento, desconto de folha, retenção ou compensação automaticamente. Cancelamento/correção tem justificativa, permissão e trilha de auditoria.
+
+### [ ] Migration e validação da funcionalidade
+
+- Mudanças no PostgreSQL são aditivas e versionadas; preservar todos os dados e contratos de fechamentos antigos. Não acessar/aplicar migration no banco compartilhado/Neon durante esta implementação sem aprovação específica.
+- Cobrir com testes isolados a atribuição do vendedor, autorização/unidade/status, idempotência, soma dos produtos no fechamento, histórico de preço/comissão, modalidades e cálculo de comissão, cancelamento e produtos inativos; rodar Prettier, `pnpm check`, `pnpm test`, `pnpm build` e `git diff --check`.
+- Validar localmente com `pnpm check`, `pnpm test`, `pnpm build` e `git diff --check`; não conectar ao Neon nem a qualquer banco, não aplicar migrations e não fazer commit, push ou deploy/publicação nesta rodada.

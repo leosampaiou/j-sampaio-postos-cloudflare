@@ -11,7 +11,10 @@ export async function exportReportXlsx(rows: any[]) {
       )[row.shift] ?? row.shift,
     Frentista: row.employeeName,
     Responsável: row.responsibleName,
-    "Total de vendas (R$)": row.salesCents / 100,
+    "Vendas de combustível (R$)": row.salesCents / 100,
+    "Vendas de produtos (R$)": (row.productSalesCents ?? 0) / 100,
+    "Total esperado (R$)":
+      (row.salesCents + (row.productSalesCents ?? 0)) / 100,
     "Total recebido (R$)": row.receivedCents / 100,
     "Diferença (R$)": row.differenceCents / 100,
     Situação:

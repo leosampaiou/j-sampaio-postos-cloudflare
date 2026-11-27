@@ -69,6 +69,11 @@ export const payroll_review_status = pgEnum("payroll_review_status", [
   "encaminhado_folha",
   "processado",
 ]);
+export const product_commission_mode = pgEnum("product_commission_mode", [
+  "none",
+  "percent",
+  "fixed",
+]);
 
 export const units = pgTable("units", {
   id: serial("id").primaryKey(),
@@ -222,6 +227,7 @@ export const closures = pgTable(
     status: closure_status("status").default("rascunho").notNull(),
     result: closure_result("result").default("pendente").notNull(),
     salesCents: integer("salesCents").default(0).notNull(),
+    productSalesCents: integer("productSalesCents").default(0).notNull(),
     receivedCents: integer("receivedCents").default(0).notNull(),
     differenceCents: integer("differenceCents").default(0).notNull(),
     toleranceCents: integer("toleranceCents").default(0).notNull(),
@@ -248,6 +254,105 @@ export const closures = pgTable(
     index("closure_date_idx").on(t.unitId, t.closureDate),
     index("closure_employee_idx").on(t.employeeId),
   ]
+);
+
+export const products = pgTable(
+  "products",
+  {
+    id: serial("id").primaryKey(),
+    unitId: integer("unitId")
+      .notNull()
+      .references(() => units.id),
+    barcode: varchar("barcode", { length: 80 }).notNull(),
+    name: varchar("name", { length: 160 }).notNull(),
+    brand: varchar("brand", { length: 120 }),
+    category: varchar("category", { length: 120 }),
+    specification: varchar("specification", { length: 240 }),
+    priceCents: integer("priceCents").notNull(),
+    active: boolean("active").default(true).notNull(),
+    commissionMode: product_commission_mode("commissionMode")
+      .default("none")
+      .notNull(),
+    commissionValue: integer("commissionValue").default(0).notNull(),
+    createdBy: integer("createdBy")
+      .notNull()
+      .references(() => appUsers.id),
+    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" })
+      .defaultNow()
+      .notNull(),
+  },
+  t => [
+    uniqueIndex("product_unit_barcode_unique").on(t.unitId, t.barcode),
+    index("product_unit_active_name_idx").on(t.unitId, t.active, t.name),
+  ]
+);
+
+export const productSales = pgTable(
+  "productSales",
+  {
+    id: serial("id").primaryKey(),
+    unitId: integer("unitId")
+      .notNull()
+      .references(() => units.id),
+    closureId: integer("closureId").references(() => closures.id),
+    closureDate: varchar("closureDate", { length: 10 }).notNull(),
+    shift: closure_shift("shift").notNull(),
+    userId: integer("userId")
+      .notNull()
+      .references(() => appUsers.id),
+    employeeId: integer("employeeId")
+      .notNull()
+      .references(() => employees.id),
+    sellerName: varchar("sellerName", { length: 160 }).notNull(),
+    idempotencyKey: varchar("idempotencyKey", { length: 80 }).notNull(),
+    totalCents: integer("totalCents").notNull(),
+    commissionCents: integer("commissionCents").default(0).notNull(),
+    canceledAt: timestamp("canceledAt", { withTimezone: true, mode: "date" }),
+    canceledBy: integer("canceledBy").references(() => appUsers.id),
+    cancelReason: text("cancelReason"),
+    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" })
+      .defaultNow()
+      .notNull(),
+  },
+  t => [
+    uniqueIndex("product_sale_unit_idempotency_unique").on(
+      t.unitId,
+      t.idempotencyKey
+    ),
+    index("product_sale_unit_period_idx").on(t.unitId, t.closureDate, t.shift),
+    index("product_sale_closure_idx").on(t.closureId),
+    index("product_sale_employee_period_idx").on(t.employeeId, t.closureDate),
+  ]
+);
+
+export const productSaleItems = pgTable(
+  "productSaleItems",
+  {
+    id: serial("id").primaryKey(),
+    saleId: integer("saleId")
+      .notNull()
+      .references(() => productSales.id),
+    productId: integer("productId")
+      .notNull()
+      .references(() => products.id),
+    barcodeSnapshot: varchar("barcodeSnapshot", { length: 80 }).notNull(),
+    nameSnapshot: varchar("nameSnapshot", { length: 160 }).notNull(),
+    brandSnapshot: varchar("brandSnapshot", { length: 120 }),
+    categorySnapshot: varchar("categorySnapshot", { length: 120 }),
+    specificationSnapshot: varchar("specificationSnapshot", { length: 240 }),
+    quantity: integer("quantity").notNull(),
+    unitPriceCents: integer("unitPriceCents").notNull(),
+    totalCents: integer("totalCents").notNull(),
+    commissionMode: product_commission_mode("commissionMode")
+      .default("none")
+      .notNull(),
+    commissionValue: integer("commissionValue").default(0).notNull(),
+    commissionCents: integer("commissionCents").default(0).notNull(),
+  },
+  t => [index("product_sale_item_sale_idx").on(t.saleId)]
 );
 
 export const closureNozzles = pgTable(

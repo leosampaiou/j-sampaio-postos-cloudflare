@@ -33,6 +33,9 @@ const TABLES = [
   "loginAttemptLimits",
   "appSessions",
   "auditEvents",
+  "productSaleItems",
+  "productSales",
+  "products",
   "closureNozzles",
   "closureParticipants",
   "closurePayments",
@@ -130,6 +133,11 @@ export async function resetIntegrationDatabase(
     );
     if (!deletedAtExists || !activeIndexExists)
       await applyMigration(client, "0002_closure_soft_delete.sql");
+    const [{ productsExists }] = await client.unsafe<
+      { productsExists: string | null }[]
+    >(`select to_regclass('public.products') as "productsExists"`);
+    if (!productsExists)
+      await applyMigration(client, "0003_product_sales.sql");
     const tables = TABLES.map(table => `"${table}"`).join(", ");
     await client.unsafe(`TRUNCATE TABLE ${tables} RESTART IDENTITY CASCADE`);
   } finally {

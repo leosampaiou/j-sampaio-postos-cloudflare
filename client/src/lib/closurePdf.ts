@@ -35,6 +35,10 @@ const toDataUrl = async (url: string) => {
 
 export async function createClosurePdf(closure: any) {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const productSales = closure.productSales ?? [];
+  const productSalesCents = closure.productSalesCents ?? 0;
+  const fuelSalesCents = closure.salesCents ?? 0;
+  const totalSalesCents = fuelSalesCents + productSalesCents;
   const navy = [16, 46, 99] as [number, number, number];
   doc.setFillColor(...navy);
   doc.rect(0, 0, 210, 39, "F");
@@ -168,7 +172,52 @@ export async function createClosurePdf(closure: any) {
   drawFuelSummary("diesel_s10", diesel);
   doc.setFont("helvetica", "bold");
   doc.text(
-    `TOTAL: ${money(closure.salesCents)}  •  ${(closure.nozzles ?? []).reduce((s: number, n: any) => s + Number(n.liters), 0).toLocaleString("pt-BR")} litros`,
+    `TOTAL DE COMBUSTÍVEL: ${money(fuelSalesCents)}  •  ${(closure.nozzles ?? []).reduce((s: number, n: any) => s + Number(n.liters), 0).toLocaleString("pt-BR")} litros`,
+    14,
+    y
+  );
+  y += 8;
+  doc.setFontSize(9);
+  doc.text("VENDAS DE PRODUTOS", 14, y);
+  y += 2;
+  if (productSales.length) {
+    autoTable(doc, {
+      startY: y + 3,
+      head: [["Produto", "Quantidade", "Preço unitário", "Total"]],
+      body: productSales.map((sale: any) => [
+        `${sale.canceledAt ? "[CANCELADA] " : ""}${sale.item?.nameSnapshot ?? "Produto"}`,
+        String(sale.item?.quantity ?? 0),
+        money(sale.item?.unitPriceCents ?? 0),
+        money(sale.item?.totalCents ?? 0),
+      ]),
+      foot: [["Subtotal de produtos", "", "", money(productSalesCents)]],
+      theme: "grid",
+      headStyles: { fillColor: navy, fontSize: 8 },
+      footStyles: {
+        fillColor: [239, 243, 249],
+        textColor: [23, 35, 55],
+        fontStyle: "bold",
+        fontSize: 8,
+      },
+      bodyStyles: { fontSize: 8, cellPadding: 2 },
+      styles: { overflow: "linebreak" },
+      margin: { left: 14, right: 14 },
+    });
+    y = (doc as any).lastAutoTable.finalY + 7;
+  } else {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.text(
+      `Nenhuma venda de produto registrada. Subtotal de produtos: ${money(productSalesCents)}`,
+      14,
+      y + 7
+    );
+    y += 13;
+  }
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.text(
+    `TOTAL GERAL (COMBUSTÍVEL + PRODUTOS): ${money(totalSalesCents)}  •  ${(closure.nozzles ?? []).reduce((s: number, n: any) => s + Number(n.liters), 0).toLocaleString("pt-BR")} litros de combustível`,
     14,
     y
   );
@@ -244,10 +293,18 @@ export async function createClosurePdf(closure: any) {
   const shift = (shiftNames[closure.shift] ?? closure.shift)
     .toUpperCase()
     .replace("Ã", "A");
+  const productLines = productSales.length
+    ? productSales
+        .map(
+          (sale: any) =>
+            `• ${sale.item?.nameSnapshot ?? "Produto"} × ${sale.item?.quantity ?? 0}${sale.canceledAt ? " (cancelada)" : ""}`
+        )
+        .join("\n")
+    : "Nenhuma venda de produto";
   return {
     doc,
     filename: `Fechamento_J_Sampaio_Postos_${day}_${shift}.pdf`,
-    message: `Olá! Segue o fechamento do ${brandName}.\n\nData: ${new Date(`${closure.closureDate}T12:00:00`).toLocaleDateString("pt-BR")}\nTurno: ${shiftNames[closure.shift]}\nFrentista: ${closure.employeeName}\n\nTotal de vendas: ${money(closure.salesCents)}\nTotal recebido: ${money(closure.receivedCents)}\nDiferença: ${money(closure.differenceCents)}\nResultado: ${result}\n\nSegue em anexo o relatório completo do fechamento.`,
+    message: `Olá! Segue o fechamento do ${brandName}.\n\nData: ${new Date(`${closure.closureDate}T12:00:00`).toLocaleDateString("pt-BR")}\nTurno: ${shiftNames[closure.shift]}\nFrentista: ${closure.employeeName}\n\nVendas de combustível: ${money(fuelSalesCents)}\nVendas de produtos: ${money(productSalesCents)}\n${productLines}\nTotal geral esperado: ${money(totalSalesCents)}\nTotal recebido: ${money(closure.receivedCents)}\nDiferença: ${money(closure.differenceCents)}\nResultado: ${result}\n\nSegue em anexo o relatório completo do fechamento.`,
   };
 }
 

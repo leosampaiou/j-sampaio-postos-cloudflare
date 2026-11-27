@@ -40,7 +40,10 @@ function addSecurityHeaders(response: Response, request: Request): Response {
   const headers = new Headers(response.headers);
   headers.set("X-Content-Type-Options", "nosniff");
   headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-  headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  headers.set(
+    "Permissions-Policy",
+    "camera=(self), microphone=(), geolocation=()"
+  );
   if (new URL(request.url).protocol === "https:")
     headers.set("Strict-Transport-Security", "max-age=31536000");
   if (headers.get("content-type")?.toLowerCase().includes("text/html"))

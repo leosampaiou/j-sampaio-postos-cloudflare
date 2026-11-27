@@ -12,6 +12,20 @@ export function businessDateInSaoPaulo(date = new Date()): string {
   return `${value("year")}-${value("month")}-${value("day")}`;
 }
 
+export function businessTimeInSaoPaulo(date = new Date()): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: BUSINESS_TIME_ZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(date);
+}
+
+export function shiftInSaoPaulo(date = new Date()): "manha" | "noite" {
+  const hour = Number(businessTimeInSaoPaulo(date).slice(0, 2));
+  return hour < 13 ? "manha" : "noite";
+}
+
 export function shiftCalendarDate(date: string, days: number): string {
   if (!isValidCalendarDate(date))
     throw new RangeError("Data de calendário inválida.");

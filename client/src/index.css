@@ -4784,6 +4784,26 @@ a {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
 }
+.sale-shift-auto {
+  display: flex;
+  min-height: 46px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid #dce8df;
+  border-radius: 9px;
+  background: #f2f8f4;
+}
+.sale-shift-auto strong {
+  color: #226d4c;
+  font-size: 0.9375rem;
+}
+.sale-shift-auto small {
+  color: #587766;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
 .product-sale-card .field > label {
   font-size: 0.8125rem;
 }

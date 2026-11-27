@@ -11,7 +11,7 @@ import {
   products,
   unitSettings,
 } from "../../drizzle/schema.pg";
-import { businessDateInSaoPaulo, isValidCalendarDate } from "../../shared/businessDate";
+import { businessDateInSaoPaulo, businessTimeInSaoPaulo, isValidCalendarDate, shiftInSaoPaulo } from "../../shared/businessDate";
 import { calculateSaleLine, sumSaleLines } from "../../shared/productSales";
 import { managerProcedure, protectedProcedure, router } from "../_core/trpc";
 
@@ -42,6 +42,15 @@ function checkedTotal(value: number, message: string) {
 }
 
 export const productsRouter = router({
+  currentShift: protectedProcedure.query(() => {
+    const now = new Date();
+    return {
+      date: businessDateInSaoPaulo(now),
+      time: businessTimeInSaoPaulo(now),
+      shift: shiftInSaoPaulo(now),
+    };
+  }),
+
   catalog: protectedProcedure.query(async ({ ctx }) => {
     const rows = await ctx.db.select().from(products).where(and(
       eq(products.unitId, ctx.user.unitId),
@@ -239,7 +248,6 @@ export const productsRouter = router({
 
   createSale: protectedProcedure.input(z.object({
     closureDate: dateSchema,
-    shift: shiftSchema,
     idempotencyKey: z.string().uuid(),
     items: z.array(z.object({ productId: positiveId, quantity: z.number().int().min(1).max(10_000) })).min(1).max(100),
   })).mutation(async ({ input, ctx }) => {
@@ -250,12 +258,18 @@ export const productsRouter = router({
       throw new TRPCError({ code: "BAD_REQUEST", message: "Consolide as quantidades de cada produto antes de confirmar." });
     try {
       return await ctx.db.transaction(async tx => {
-        const [existingSale] = await tx.select({ id: productSales.id, totalCents: productSales.totalCents })
+        const [existingSale] = await tx.select({
+          id: productSales.id,
+          totalCents: productSales.totalCents,
+          shift: productSales.shift,
+        })
           .from(productSales).where(and(
             eq(productSales.unitId, ctx.user.unitId),
             eq(productSales.idempotencyKey, input.idempotencyKey)
           )).limit(1);
         if (existingSale) return { ...existingSale, repeated: true };
+
+        const shift = shiftInSaoPaulo();
 
         const [employee] = await tx.select().from(employees).where(and(
           eq(employees.unitId, ctx.user.unitId),
@@ -268,14 +282,14 @@ export const productsRouter = router({
         const [closure] = await tx.select().from(closures).where(and(
           eq(closures.unitId, ctx.user.unitId),
           eq(closures.closureDate, input.closureDate),
-          eq(closures.shift, input.shift),
+          eq(closures.shift, shift),
           isNull(closures.deletedAt)
         )).limit(1).for("update");
         if (!closure) {
           const [archived] = await tx.select({ id: closures.id }).from(closures).where(and(
             eq(closures.unitId, ctx.user.unitId),
             eq(closures.closureDate, input.closureDate),
-            eq(closures.shift, input.shift),
+            eq(closures.shift, shift),
             isNotNull(closures.deletedAt)
           )).limit(1);
           if (archived)
@@ -305,14 +319,14 @@ export const productsRouter = router({
           unitId: ctx.user.unitId,
           closureId: closure?.id ?? null,
           closureDate: input.closureDate,
-          shift: input.shift,
+          shift,
           userId: ctx.user.id,
           employeeId: employee.id,
           sellerName: employee.fullName,
           idempotencyKey: input.idempotencyKey,
           totalCents: totals.totalCents,
           commissionCents: totals.commissionCents,
-        }).returning({ id: productSales.id, totalCents: productSales.totalCents });
+        }).returning({ id: productSales.id, totalCents: productSales.totalCents, shift: productSales.shift });
         await tx.insert(productSaleItems).values(calculated.map(({ item, product, values }) => ({
           saleId: sale.id,
           productId: product.id,
@@ -357,7 +371,11 @@ export const productsRouter = router({
       });
     } catch (error) {
       if (isUniqueViolation(error)) {
-        const [replayed] = await ctx.db.select({ id: productSales.id, totalCents: productSales.totalCents }).from(productSales).where(and(
+        const [replayed] = await ctx.db.select({
+          id: productSales.id,
+          totalCents: productSales.totalCents,
+          shift: productSales.shift,
+        }).from(productSales).where(and(
           eq(productSales.unitId, ctx.user.unitId), eq(productSales.idempotencyKey, input.idempotencyKey)
         )).limit(1);
         if (replayed) return { ...replayed, repeated: true };

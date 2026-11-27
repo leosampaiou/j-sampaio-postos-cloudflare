@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
-import { businessDateInSaoPaulo } from "@shared/businessDate";
 import { parseCurrencyCents } from "@shared/currency";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -82,8 +81,7 @@ function BarcodeScanner({ onCode, disabled = false }: { onCode: (code: string) =
 
 function SaleRegister({ user }: { user: User }) {
   const utils = trpc.useUtils();
-  const [date, setDate] = useState(businessDateInSaoPaulo());
-  const [shift, setShift] = useState<"manha" | "tarde" | "noite">("manha");
+  const [date, setDate] = useState("");
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<CartLine[]>([]);
   const [confirmationUncertain, setConfirmationUncertain] = useState(false);
@@ -97,6 +95,13 @@ function SaleRegister({ user }: { user: User }) {
   } | null>(null);
   const key = useRef(crypto.randomUUID());
   const submitLock = useRef(false);
+  const currentShift = trpc.products.currentShift.useQuery(undefined, {
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+  });
+  useEffect(() => {
+    if (currentShift.data?.date) setDate(currentShift.data.date);
+  }, [currentShift.data?.date]);
   const catalog = trpc.products.catalog.useQuery();
   const status = trpc.products.commissionStatus.useQuery();
   const sale = trpc.products.createSale.useMutation({
@@ -106,7 +111,7 @@ function SaleRegister({ user }: { user: User }) {
         totalCents: result.totalCents,
         repeated: result.repeated,
         date,
-        shift,
+        shift: result.shift,
         items: cart.map(line => ({ name: line.product.name, quantity: line.quantity })),
       });
       setCart([]);
@@ -202,11 +207,11 @@ function SaleRegister({ user }: { user: User }) {
   const submit = () => {
     if (submitLock.current || sale.isPending) return;
     if (!cart.length) return toast.error("Adicione ao menos um produto.");
+    if (!currentShift.data) return toast.error("Aguardando a confirmação do horário oficial para identificar o turno.");
     submitLock.current = true;
     setReceipt(null);
     sale.mutate({
       closureDate: date,
-      shift,
       idempotencyKey: key.current,
       items: cart.map(line => ({
         productId: line.product.id,
@@ -271,8 +276,8 @@ function SaleRegister({ user }: { user: User }) {
       <div className="sale-step-heading">
         <span>1</span>
         <div>
-          <strong>Escolha o turno</strong>
-          <small>A venda ficará vinculada a este fechamento.</small>
+          <strong>Turno automático</strong>
+          <small>Definido pelo horário oficial de São Paulo.</small>
         </div>
       </div>
       <div className="product-slot-fields">
@@ -282,26 +287,35 @@ function SaleRegister({ user }: { user: User }) {
             id="sale-date"
             type="date"
             value={date}
-            max={businessDateInSaoPaulo()}
-            disabled={locked}
+            min={currentShift.data?.date}
+            max={currentShift.data?.date}
+            disabled={locked || !currentShift.data}
             onChange={event => setDate(event.target.value)}
           />
         </div>
         <div className="field">
-          <Label htmlFor="sale-shift">Turno</Label>
-          <select
-            id="sale-shift"
-            className="form-select"
-            value={shift}
-            disabled={locked}
-            onChange={event => setShift(event.target.value as typeof shift)}
-          >
-            {shiftOptions.map(item => (
-              <option key={item.value} value={item.value}>{item.label}</option>
-            ))}
-          </select>
+          <Label>Turno identificado</Label>
+          <div className="sale-shift-auto" role="status" aria-live="polite">
+            <strong>
+              {currentShift.data
+                ? shiftOptions.find(item => item.value === currentShift.data.shift)?.label ?? "Noite"
+                : currentShift.isError ? "Indisponível" : "Verificando…"}
+            </strong>
+            <small>
+              {currentShift.data
+                ? `${currentShift.data.time} · São Paulo`
+                : "Horário oficial do servidor"}
+            </small>
+          </div>
+          <small>Antes das 13h: manhã. A partir das 13h: noite.</small>
         </div>
       </div>
+      {currentShift.isError && (
+        <QueryError
+          message="Não foi possível confirmar o turno pelo horário oficial. A venda ficará indisponível até a consulta voltar."
+          retry={() => currentShift.refetch()}
+        />
+      )}
 
       <div className="sale-step-heading">
         <span>2</span>
@@ -437,7 +451,7 @@ function SaleRegister({ user }: { user: User }) {
         <p>O recebimento desta venda é somado no fechamento do turno.</p>
         <Button
           className="primary-button product-confirm-button"
-          disabled={!cart.length || sale.isPending || catalog.isLoading}
+          disabled={!cart.length || sale.isPending || catalog.isLoading || !currentShift.data}
           onClick={submit}
         >
           <Check size={19} />
